@@ -1,61 +1,80 @@
-import socket
 import logging
-
-from common import Connection, BaseServerd
-
-
-__all__     = ['EchoNode']
-NEWLINE     = '\n'
 log         = logging.getLogger('asynode')
 
-class EchoIncoming(Connection):
-    TERMINATOR = NEWLINE
-    def collect_incoming_data(self, data):
-        Connection.collect_incoming_data(self, data)
-        self._buffer.append(data)
+from common import Connection, BaseServerd
+__all__     = ['EchoNode']
 
-    def callback(self, data):
-        Connection.callback(self, data)
-        self._buffer = []
+class FinalState(Exception):
+    @property
+    def final(self):
+        return self.args[0]
 
-    def _close(self):
-        self.close()
+class EchoOutcomingState(object):
+    def __init__(self, *args):
+        self._data = list(args)
+        self._data.append('')
 
+    def next(self, data):
+        '''
+        >>> s = EchoOutcomingState('a', 'b')
+        >>> s._data
+        ['a', 'b']
+        >>> s.next('')
+        'a'
+        >>> s.next('')
+        'b'
+        >>> s.next('')
+        Traceback (most recent call last):
+            ...
+        FinalState
+        '''
+        try:
+            return self._data.pop(0)
+        except IndexError:
+            raise FinalState('')
 
-class EchoOutcoming(Connection):
-    TERMINATOR = NEWLINE
-    def sendit(self, host, port, *args):
-        self._buffer = map(str,args)
-        self.connect((host, port))
-
-    def handle_connect(self):
-        self._process(self._buffer, self.callback)
-
-    def _close(self):
-        self.push('')
+class EchoIncomingState(object):
+    def next(self, data):
+        if ''.join(data):
+            return ''.join(data)
+        else:
+            raise FinalState(None)
 
 
 class EchoNode(object):
     def __init__(self, incoming=None, outcoming=None):
-        self.incoming = incoming or EchoIncoming
-        self.outcoming = outcoming or EchoOutcoming
+        self.incoming = incoming or Connection
+        self.outcoming = outcoming or Connection
+        self._id = 0
+        self._cache = {}
 
     def listen(self, host, port):
         BaseServerd(host, port, self.accept)
 
     def accept(self, sock):
-        self.incoming(self.process_data, sock)
+        cid = self.next_id
+        self.incoming(cid, self.process, sock)
+        self._cache[cid] = EchoIncomingState()
 
     def send(self, host, port, *args):
-        self.outcoming(self.process_message).sendit(host, port, *args)
-        
-    @staticmethod
-    def process_message(msg, callback):
-        callback(msg.pop(0))
+        cid = self.next_id
+        self.outcoming(cid, self.process).connect((host, port))
+        args = list(args)
+        self._cache[cid] = EchoOutcomingState(*args)
 
-    @staticmethod
-    def process_data(data, callback):
-        callback(''.join(data))
+    def process(self, data, cid, callback):
+        try:
+            next = self._cache[cid].next(data)
+        except FinalState as e:
+            del self._cache[cid]
+
+            next = e.final
+        callback(next)
+
+    @property
+    def next_id(self):
+        self._id += 1
+        return self._id
 
 
 if __name__ == '__main__':
@@ -70,4 +89,8 @@ if __name__ == '__main__':
         node.send(options.host, options.port, *args)
         node.send(options.host, options.port, *args)
         node.send(options.host, options.port, *args)
-    asyncore.loop()
+    try:
+        asyncore.loop()
+    except KeyboardInterrupt:
+        import sys
+        sys.exit()
