@@ -58,3 +58,46 @@ class Connection(asynchat.async_chat):
     @property
     def local(self):
         return self.socket.getsockname()
+
+
+class FinalState(Exception):
+    @property
+    def final(self):
+        return self.args[0]
+
+
+class Node(object):
+    def __init__(self, instate, outstate, inconn=None, outconn=None):
+        self.instate = instate
+        self.outstate = outstate
+        self.incoming = inconn or Connection
+        self.outcoming = outconn or Connection
+        self._id = 0
+        self._cache = {}
+
+    def listen(self, host, port):
+        BaseServerd(host, port, self.accept)
+
+    def accept(self, sock):
+        cid = self.next_id
+        self.incoming(cid, self.process, sock)
+        self._cache[cid] = self.instate()
+
+    def send(self, host, port, *args):
+        cid = self.next_id
+        self.outcoming(cid, self.process).connect((host, port))
+        args = list(args)
+        self._cache[cid] = self.outstate(*args)
+
+    def process(self, data, cid, callback):
+        try:
+            next = self._cache[cid].next(data)
+        except FinalState as e:
+            next = e.final
+            del self._cache[cid]
+        callback(next)
+
+    @property
+    def next_id(self):
+        self._id += 1
+        return self._id
