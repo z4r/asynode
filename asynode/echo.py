@@ -1,6 +1,3 @@
-import logging
-log         = logging.getLogger('asynode')
-
 from common import Node, FinalState
 
 class EchoOutcomingState(object):
@@ -31,21 +28,21 @@ class EchoIncomingState(object):
     def next(self, data):
         '''
         >>> s = EchoIncomingState()
-        >>> s.next(['a', 'b'])
+        >>> s.next('ab')
         'ab'
-        >>> s.next([''])
+        >>> s.next('')
         Traceback (most recent call last):
             ...
         FinalState: None
         '''
-        ret = ''.join(data)
-        if ret:
-            return ret
+        if data:
+            return data
         else:
             raise FinalState(None)
 
 
 if __name__ == '__main__':
+    import logging
     logging.basicConfig(level=logging.DEBUG)
     from opt import input
     options, args = input()

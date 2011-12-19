@@ -86,12 +86,11 @@ class Node(object):
     def send(self, host, port, *args):
         cid = self.next_id
         self.outcoming(cid, self.process).connect((host, port))
-        args = list(args)
         self._cache[cid] = self.outstate(*args)
 
     def process(self, data, cid, callback):
         try:
-            next = self._cache[cid].next(data)
+            next = self._cache[cid].next(''.join(data))
         except FinalState as e:
             next = e.final
             del self._cache[cid]
