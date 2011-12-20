@@ -40,7 +40,6 @@ if __name__ == '__main__':
         node.listen(options.host, options.port)
     else:
         node.send(options.host, options.port, *args)
-        node.send(options.host, options.port, *args)
     try:
         asyncore.loop()
     except KeyboardInterrupt:

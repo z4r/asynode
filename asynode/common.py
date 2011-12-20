@@ -30,7 +30,7 @@ class Connection(asynchat.async_chat):
             log.info('Incoming connection from {a}'.format(a=self.addr))
         self._process('INIT', self._buffer, cid, self.callback)
 
-    def callback(self, data=None, terminator=None, close_when_done=False):
+    def callback(self, data=None, terminator=None, close=False):
         log.debug('CALLBACK {d!r} {t!r}'.format(d=data, t=terminator))
         if terminator is not None:
             log.debug('Setting terminator to {t!r}'.format(t=terminator))
@@ -38,7 +38,7 @@ class Connection(asynchat.async_chat):
         if data is not None:
             log.info('{l} => {r}: {d!r}'.format(l=self.local, r=self.remote, d=data.strip() or '<QUIT>'))
             self.push(data)
-        if close_when_done:
+        if close:
             self.close_when_done()
 
     def collect_incoming_data(self, data):
@@ -92,7 +92,6 @@ class Node(object):
         self.outcoming(cid, self.process).connect((host, port))
 
     def process(self, state, data, cid, callback):
-        log.debug('[{c}] {s} - {d}'.format(c=cid, s=state, d=data))
         next = self._cache[cid].next(''.join(data), state)
         if next.final:
             del self._cache[cid]

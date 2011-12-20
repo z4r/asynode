@@ -1,9 +1,9 @@
-__author__ = "Andrea de Marco <andrea.demarco@buongiorno.com>"
-__version__ = '1.0'
+__author__ = "Andrea 'z4r' De Marco <andrea.demarco@buongiorno.com>"
+__version__ = '0.1'
 __classifiers__ = [
-    'Development Status :: 5 - Production/Stable',
+    'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: GNU General Public License (GPL)', #TODO
+    'License :: OSI Approved :: Apache Software License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Topic :: Communications',
