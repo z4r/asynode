@@ -234,6 +234,23 @@ class SMTPIncomingState(IncomingAutomaton):
 
 
 if __name__ == '__main__':
+    def interactive():
+        source = raw_input("Please enter a source: ")
+        targets = raw_input("Please enter a list of targets [',' separated]: ").split(',')
+        message = [raw_input("Please enter text to send [ENTER + CRTL+C to STOP]: ")]
+        while True:
+            try:
+                message.append(raw_input())
+            except KeyboardInterrupt:
+                break
+        print message
+        return dict(
+            #auth = ('user', 'pass'),
+            localname = socket.getfqdn(),
+            source = source,
+            targets = targets,
+            message = '\n'.join(message),
+        )
     import logging
     logging.basicConfig(level=logging.INFO)
     from opt import input
@@ -244,13 +261,7 @@ if __name__ == '__main__':
     if options.server:
         node.listen(options.host, options.port)
     else:
-        kwargs = dict(
-            #auth = ('user', 'pass'),
-            localname = 'z4r.buongiorno.loc',
-            source = 'me@work.it',
-            targets = ['you@work.it', 'us@work.it',],
-            message = 'Hello World!',
-        )
+        kwargs = interactive()
         node.send(options.host, options.port, *args, **kwargs)
     try:
         asyncore.loop()
