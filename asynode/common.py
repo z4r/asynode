@@ -1,8 +1,12 @@
+""" This module is the core asynode.
+Implement a listener, a bi-directional connection, and a factory to link
+connections and automa.
+"""
 import asyncore
 import asynchat
 import socket
 import logging
-log = logging.getLogger('asynode')
+LOGGER = logging.getLogger('asynode')
 
 class BaseServerd(asyncore.dispatcher):
     def __init__ (self, host, port, on_accept):
@@ -12,7 +16,7 @@ class BaseServerd(asyncore.dispatcher):
         self.set_reuse_addr()
         self.bind((host, port))
         self.listen(5)
-        log.info('Listening on {h}:{p}'.format(h=host, p=port))
+        LOGGER.info('Listening on {h}:{p}'.format(h=host, p=port))
 
     def handle_accept(self):
         sock, _ = self.accept()
@@ -27,26 +31,27 @@ class Connection(asynchat.async_chat):
         self._process = callback
         self._buffer = []
         if self.addr:
-            log.info('Incoming connection from {a}'.format(a=self.addr))
-        self._process('INIT', self._buffer, cid, self.callback)
+            LOGGER.info('Incoming connection from {a}'.format(a=self.addr))
+        self._process('INITIAL', self._buffer, cid, self.callback)
 
     def callback(self, data=None, terminator=None, close=False):
-        log.debug('CALLBACK {d!r} {t!r}'.format(d=data, t=terminator))
+        LOGGER.debug('CALLBACK {d!r} {t!r}'.format(d=data, t=terminator))
         if terminator is not None:
-            log.debug('Setting terminator to {t!r}'.format(t=terminator))
+            LOGGER.debug('Setting terminator to {t!r}'.format(t=terminator))
             self.set_terminator(terminator)
         if data is not None:
-            log.info('{l} => {r}: {d!r}'.format(l=self.local, r=self.remote, d=data.strip() or '<QUIT>'))
+            logd = data.strip() or '<QUIT>'
+            LOGGER.info('{s.local} => {s.remote}: {d!r}'.format(s=self, d=logd))
             self.push(data)
         if close:
             self.close_when_done()
 
     def collect_incoming_data(self, data):
-        log.info('{l} <= {r}: {d!r}'.format(l=self.local, r=self.remote, d=data))
+        LOGGER.info('{s.local} <= {s.remote}: {d!r}'.format(s=self, d=data))
         self._buffer.append(data)
 
     def handle_connect(self):
-        log.info('Connected to {a}'.format(a=self.remote))
+        LOGGER.info('Connected to {a}'.format(a=self.remote))
         self._process('CONNECT', self._buffer, self.cid, self.callback)
 
     def found_terminator(self):
@@ -56,7 +61,7 @@ class Connection(asynchat.async_chat):
         self._buffer = []
 
     def handle_close(self):
-        log.info('Closing {a}'.format(a=self.remote or ''))
+        LOGGER.info('Closing {a}'.format(a=self.remote or ''))
         asynchat.async_chat.handle_close(self)
 
     @property
@@ -68,36 +73,35 @@ class Connection(asynchat.async_chat):
         return self.socket.getsockname()
 
 
-class Node(object):
-    def __init__(self, instate, outstate, listener=None, inconn=None, outconn=None):
-        self.instate = instate
-        self.outstate = outstate
-        self.listener = listener or BaseServerd
-        self.incoming = inconn or Connection
-        self.outcoming = outconn or Connection
-        self._id = 0
-        self._cache = {}
+class ConnectionFactory(object):
+    def __init__(self, instate, outstate, **kwargs):
+        self.instate    = instate
+        self.outstate   = outstate
+        self.listener   = kwargs.get('listener', BaseServerd)
+        self.incoming   = kwargs.get('inconn', Connection)
+        self.outcoming  = kwargs.get('outconn', Connection)
+        self._id        = 0
+        self._cache     = {}
 
     def listen(self, host, port):
         self.listener(host, port, self.accept)
 
     def accept(self, sock):
-        cid = self.next_id
+        cid = self.get_next()
         self._cache[cid] = self.instate()
         self.incoming(cid, self.process, sock)
 
     def send(self, host, port, *args, **kwargs):
-        cid = self.next_id
+        cid = self.get_next()
         self._cache[cid] = self.outstate(*args, **kwargs)
         self.outcoming(cid, self.process).connect((host, port))
 
     def process(self, state, data, cid, callback):
-        next = self._cache[cid].next(''.join(data), state)
-        if next.final:
+        next_state = self._cache[cid].next(''.join(data), state)
+        if next_state.final:
             del self._cache[cid]
-        callback(next.push, next.terminator, next.close)
+        callback(next_state.push, next_state.terminator, next_state.close)
 
-    @property
-    def next_id(self):
+    def get_next(self):
         self._id += 1
         return self._id

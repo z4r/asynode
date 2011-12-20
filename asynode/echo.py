@@ -1,17 +1,18 @@
-from common import Node
+from common import ConnectionFactory
 from state import PushState, FinalState, IncomingAutomaton, OutcomingAutomaton
 
 class EchoOutcomingAutomaton(OutcomingAutomaton):
     def __init__(self, *args):
         self._data = list(args)
+        super(EchoOutcomingAutomaton, self).__init__()
 
-    def INIT(self, data):
+    def initial(self, data):
         return PushState(terminator='\n')
 
-    def CONNECT(self, data):
-        return self.TERMINATOR(data)
+    def connect(self, data):
+        return self.terminator(data)
 
-    def TERMINATOR(self, data):
+    def terminator(self, data):
         try:
             return PushState(push=self._data.pop(0)+'\n')
         except IndexError:
@@ -19,10 +20,10 @@ class EchoOutcomingAutomaton(OutcomingAutomaton):
 
 
 class EchoIncomingAutomaton(IncomingAutomaton):
-    def INIT(self, data):
+    def initial(self, data):
         return PushState(terminator='\n')
 
-    def TERMINATOR(self, data):
+    def terminator(self, data):
         if data:
             return PushState(push=data+'\n')
         else:
@@ -32,14 +33,16 @@ class EchoIncomingAutomaton(IncomingAutomaton):
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO)
-    from opt import input
-    options, args = input()
+    from opt import parse_input
+    OPTIONS, ARGS = parse_input()
     import asyncore
-    node = Node(instate=EchoIncomingAutomaton, outstate=EchoOutcomingAutomaton)
-    if options.server:
-        node.listen(options.host, options.port)
+    NODE = ConnectionFactory(
+        instate=EchoIncomingAutomaton, outstate=EchoOutcomingAutomaton
+    )
+    if OPTIONS.server:
+        NODE.listen(OPTIONS.host, OPTIONS.port)
     else:
-        node.send(options.host, options.port, *args)
+        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS) # pylint: disable=W0142
     try:
         asyncore.loop()
     except KeyboardInterrupt:

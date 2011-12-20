@@ -25,12 +25,12 @@ class Automaton(object):
         pass
 
     def next(self, data, state='TERMINATOR'):
-        return getattr(self, state)(data)
+        return getattr(self, state.lower())(data)
 
-    def INIT(self, data):
+    def initial(self, data):
         raise NotImplementedError
 
-    def TERMINATOR(self, data):
+    def terminator(self, data):
         raise NotImplementedError
 
 
@@ -39,5 +39,5 @@ class IncomingAutomaton(Automaton):
 
 
 class OutcomingAutomaton(Automaton):
-    def CONNECT(self, data):
+    def connect(self, data):
         raise NotImplementedError

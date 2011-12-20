@@ -21,8 +21,8 @@ if __name__ == '__main__':
     def interactive():
         import socket
         source = raw_input("Please enter a source: ")
-        targets = raw_input("Please enter a list of targets [',' separated]: ").split(',')
-        message = [raw_input("Please enter text to send [ENTER + CRTL+C to STOP]: ")]
+        targets = raw_input("Please enter a list of targets [',' separated]: ")
+        message = [raw_input("Please enter text to send [CRTL+C to STOP]: ")]
         while True:
             try:
                 message.append(raw_input())
@@ -32,21 +32,23 @@ if __name__ == '__main__':
             #auth = ('user', 'pass'),
             localname = socket.getfqdn(),
             source = source,
-            targets = targets,
+            targets = targets.split(','),
             message = '\n'.join(message),
         )
     import logging
     logging.basicConfig(level=logging.INFO)
-    from opt import input
-    options, args = input()
+    from opt import parse_input
+    OPTIONS, ARGS = parse_input()
     import asyncore
-    from common import Node
-    node = Node(instate=LMTPIncomingAutomaton, outstate=LMTPOutcomingAutomaton)
-    if options.server:
-        node.listen(options.host, options.port)
+    from common import ConnectionFactory
+    NODE = ConnectionFactory(
+        instate=LMTPIncomingAutomaton, outstate=LMTPOutcomingAutomaton
+    )
+    if OPTIONS.server:
+        NODE.listen(OPTIONS.host, OPTIONS.port)
     else:
-        kwargs = interactive()
-        node.send(options.host, options.port, *args, **kwargs)
+        KWARGS = interactive()
+        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS, **KWARGS) # pylint: disable=W0142
     try:
         asyncore.loop()
     except KeyboardInterrupt:

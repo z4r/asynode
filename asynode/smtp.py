@@ -51,6 +51,7 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         >>> s.next('221') #ACK QUIT
         State(push=None, terminator=None, close=False, final=True)
         '''
+        super(SMTPOutcomingAutomaton, self).__init__()
         self._data = [(None, '220')]
         if kwargs.get('auth'):
             self._data.append((
@@ -65,13 +66,13 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         self._data.append(self._QUIT())
         self._nextcheck = None
 
-    def INIT(self, data):
+    def initial(self, data):
         return PushState(terminator=CRLF)
 
-    def CONNECT(self, data):
-        return self.TERMINATOR(data)
+    def connect(self, data):
+        return self.terminator(data)
 
-    def TERMINATOR(self, data):
+    def terminator(self, data):
         self._check(data, self._nextcheck)
         try:
             push, self._nextcheck = self._data.pop(0)
@@ -154,6 +155,7 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         >>> s.next('QUIT')
         State(push='221 Bye', terminator=None, close=True, final=True)
         '''
+        super(SMTPIncomingAutomaton, self).__init__()
         self.fqdn = kwargs.get('fqdn', socket.getfqdn())
         self.version = kwargs.get('version', '1.0')
         self._command = True
@@ -162,13 +164,13 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         self._mailfrom = None
         self._rcpttos = []
 
-    def INIT(self, data):
+    def initial(self, data):
         return PushState(
             push='220 {s.fqdn} {s.version}'.format(s=self) + CRLF,
             terminator=CRLF,
         )
 
-    def TERMINATOR(self, data):
+    def terminator(self, data):
         if self._command:
             if not data:
                 return self.reply('500 Error: bad syntax')
@@ -261,15 +263,17 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
 
     @staticmethod
     def not_implemented(command):
-        return PushState('502 Error: command {c!r} not implemented'.format(c=command))
+        return PushState(
+            '502 Error: command {c!r} not implemented'.format(c=command) + CRLF
+        )
 
 
 
 if __name__ == '__main__':
     def interactive():
         source = raw_input("Please enter a source: ")
-        targets = raw_input("Please enter a list of targets [',' separated]: ").split(',')
-        message = [raw_input("Please enter text to send [ENTER + CRTL+C to STOP]: ")]
+        targets = raw_input("Please enter a list of targets [',' separated]: ")
+        message = [raw_input("Please enter text to send [CRTL+C to STOP]: ")]
         while True:
             try:
                 message.append(raw_input())
@@ -279,21 +283,23 @@ if __name__ == '__main__':
             #auth = ('user', 'pass'),
             localname = socket.getfqdn(),
             source = source,
-            targets = targets,
+            targets = targets.split(','),
             message = '\n'.join(message),
         )
     import logging
     logging.basicConfig(level=logging.INFO)
-    from opt import input
-    options, args = input()
+    from opt import parse_input
+    OPTIONS, ARGS = parse_input()
     import asyncore
-    from common import Node
-    node = Node(instate=SMTPIncomingAutomaton, outstate=SMTPOutcomingAutomaton)
-    if options.server:
-        node.listen(options.host, options.port)
+    from common import ConnectionFactory
+    NODE = ConnectionFactory(
+        instate=SMTPIncomingAutomaton, outstate=SMTPOutcomingAutomaton
+    )
+    if OPTIONS.server:
+        NODE.listen(OPTIONS.host, OPTIONS.port)
     else:
-        kwargs = interactive()
-        node.send(options.host, options.port, *args, **kwargs)
+        KWARGS = interactive()
+        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS, **KWARGS) # pylint: disable=W0142
     try:
         asyncore.loop()
     except KeyboardInterrupt:

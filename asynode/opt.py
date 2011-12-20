@@ -1,6 +1,6 @@
 from optparse import OptionParser
 
-def input():
+def parse_input():
     parser = OptionParser()
     parser.add_option('-s', '--server',
         action  = 'store_true',
