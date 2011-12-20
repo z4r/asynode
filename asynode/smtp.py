@@ -18,6 +18,7 @@ class SMTPOutcomingState(OutcomingAutomaton):
         ...     message = 'Hello World!\nHello Again!',
         ... )
         >>> s._data ==  [
+        ... (None, '220'),
         ... ('AUTH PLAIN AHVzZXIAcGFzcw==', '235'),
         ... ('HELO @work', '250'),
         ... ('MAIL FROM: <me@work.it>', '250'),
@@ -51,7 +52,7 @@ class SMTPOutcomingState(OutcomingAutomaton):
         >>> s.next('221') #ACK QUIT
         State(push=None, terminator=None, close=False, final=True)
         '''
-        self._data = []
+        self._data = [(None, '220')]
         if kwargs.get('auth'):
             self._data.append((
                 'AUTH PLAIN ' + b64encode(("\0%s\0%s") % kwargs.get('auth')),
@@ -64,26 +65,27 @@ class SMTPOutcomingState(OutcomingAutomaton):
         self._data.append(('DATA', '354'))
         self._data.append((self.quotedata(kwargs['message']), '250'))
         self._data.append(('QUIT', '221'))
+        self._nextcheck = None
 
     def INIT(self, data):
         return PushState(terminator=CRLF)
 
     def CONNECT(self, data):
-        self._nextcheck = '220'
-        return PassState()
+        return self.TERMINATOR(data)
 
     def TERMINATOR(self, data):
         self._check(data, self._nextcheck)
         try:
             push, self._nextcheck = self._data.pop(0)
-            push += CRLF
+            if push is not None:
+                push += CRLF
             return PushState(push=push)
         except IndexError:
             return FinalState()
 
     @staticmethod
     def _check(data, success_code):
-        if not data.startswith(success_code):
+        if success_code is not None  and not data.startswith(success_code):
             raise AsyncSMTPException(data)
 
     @staticmethod
@@ -243,7 +245,6 @@ if __name__ == '__main__':
                 message.append(raw_input())
             except KeyboardInterrupt:
                 break
-        print message
         return dict(
             #auth = ('user', 'pass'),
             localname = socket.getfqdn(),
