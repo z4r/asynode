@@ -1,57 +1,44 @@
-from common import Node, FinalState
+from common import Node
+from state import PushState, FinalState, IncomingAutomaton, OutcomingAutomaton
 
-class EchoOutcomingState(object):
+class EchoOutcomingAutomaton(OutcomingAutomaton):
     def __init__(self, *args):
         self._data = list(args)
 
-    def next(self, data):
-        '''
-        >>> s = EchoOutcomingState('a', 'b')
-        >>> s._data
-        ['a', 'b']
-        >>> s.next('')
-        'a'
-        >>> s.next('')
-        'b'
-        >>> s.next('')
-        Traceback (most recent call last):
-            ...
-        FinalState
-        '''
+    def INIT(self, data):
+        return PushState(terminator='\n')
+
+    def CONNECT(self, data):
+        return self.TERMINATOR(data)
+
+    def TERMINATOR(self, data):
         try:
-            return self._data.pop(0)
+            return PushState(push=self._data.pop(0)+'\n')
         except IndexError:
-            raise FinalState('')
+            return FinalState(push='\n')
 
 
-class EchoIncomingState(object):
-    def next(self, data):
-        '''
-        >>> s = EchoIncomingState()
-        >>> s.next('ab')
-        'ab'
-        >>> s.next('')
-        Traceback (most recent call last):
-            ...
-        FinalState: None
-        '''
+class EchoIncomingAutomaton(IncomingAutomaton):
+    def INIT(self, data):
+        return PushState(terminator='\n')
+
+    def TERMINATOR(self, data):
         if data:
-            return data
+            return PushState(push=data+'\n')
         else:
-            raise FinalState(None)
+            return FinalState()
 
 
 if __name__ == '__main__':
     import logging
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     from opt import input
     options, args = input()
     import asyncore
-    node = Node(instate=EchoIncomingState, outstate=EchoOutcomingState)
+    node = Node(instate=EchoIncomingAutomaton, outstate=EchoOutcomingAutomaton)
     if options.server:
         node.listen(options.host, options.port)
     else:
-        node.send(options.host, options.port, *args)
         node.send(options.host, options.port, *args)
         node.send(options.host, options.port, *args)
     try:

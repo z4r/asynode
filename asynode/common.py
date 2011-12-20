@@ -20,36 +20,44 @@ class BaseServerd(asyncore.dispatcher):
 
 
 class Connection(asynchat.async_chat):
-    TERMINATOR = '\n'
     def __init__(self, cid, callback, sock=None):
         sock = sock or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         asynchat.async_chat.__init__(self, sock)
         self.cid = cid
         self._process = callback
-        self.set_terminator(self.TERMINATOR)
         self._buffer = []
         if self.addr:
             log.info('Incoming connection from {a}'.format(a=self.addr))
+        self._process('INIT', self._buffer, cid, self.callback)
 
-    def callback(self, data):
+    def callback(self, data=None, terminator=None, close_when_done=False):
+        log.debug('CALLBACK {d!r} {t!r}'.format(d=data, t=terminator))
+        if terminator is not None:
+            log.debug('Setting terminator to {t!r}'.format(t=terminator))
+            self.set_terminator(terminator)
         if data is not None:
-            log.info('{l} => {r}: {d!r}'.format(l=self.local, r=self.remote, d=data or '<QUIT>'))
+            log.info('{l} => {r}: {d!r}'.format(l=self.local, r=self.remote, d=data.strip() or '<QUIT>'))
             self.push(data)
-            self.push(self.TERMINATOR)
+        if close_when_done:
+            self.close_when_done()
 
     def collect_incoming_data(self, data):
         log.info('{l} <= {r}: {d!r}'.format(l=self.local, r=self.remote, d=data))
         self._buffer.append(data)
 
     def handle_connect(self):
-        self._process(self._buffer, self.cid, self.callback)
+        log.info('Connected to {a}'.format(a=self.remote))
+        self._process('CONNECT', self._buffer, self.cid, self.callback)
 
     def found_terminator(self):
         if not self._buffer:
-            log.info('Closing {a}'.format(a=self.addr))
-            self.close()
-        self._process(self._buffer, self.cid, self.callback)
+            self.handle_close()
+        self._process('TERMINATOR', self._buffer, self.cid, self.callback)
         self._buffer = []
+
+    def handle_close(self):
+        log.info('Closing {a}'.format(a=self.remote or ''))
+        asynchat.async_chat.handle_close(self)
 
     @property
     def remote(self):
@@ -60,41 +68,35 @@ class Connection(asynchat.async_chat):
         return self.socket.getsockname()
 
 
-class FinalState(Exception):
-    @property
-    def final(self):
-        return self.args[0]
-
-
 class Node(object):
-    def __init__(self, instate, outstate, inconn=None, outconn=None):
+    def __init__(self, instate, outstate, listener=None, inconn=None, outconn=None):
         self.instate = instate
         self.outstate = outstate
+        self.listener = listener or BaseServerd
         self.incoming = inconn or Connection
         self.outcoming = outconn or Connection
         self._id = 0
         self._cache = {}
 
     def listen(self, host, port):
-        BaseServerd(host, port, self.accept)
+        self.listener(host, port, self.accept)
 
     def accept(self, sock):
         cid = self.next_id
-        self.incoming(cid, self.process, sock)
         self._cache[cid] = self.instate()
+        self.incoming(cid, self.process, sock)
 
-    def send(self, host, port, *args):
+    def send(self, host, port, *args, **kwargs):
         cid = self.next_id
+        self._cache[cid] = self.outstate(*args, **kwargs)
         self.outcoming(cid, self.process).connect((host, port))
-        self._cache[cid] = self.outstate(*args)
 
-    def process(self, data, cid, callback):
-        try:
-            next = self._cache[cid].next(''.join(data))
-        except FinalState as e:
-            next = e.final
+    def process(self, state, data, cid, callback):
+        log.debug('[{c}] {s} - {d}'.format(c=cid, s=state, d=data))
+        next = self._cache[cid].next(''.join(data), state)
+        if next.final:
             del self._cache[cid]
-        callback(next)
+        callback(next.push, next.terminator, next.close)
 
     @property
     def next_id(self):
