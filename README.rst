@@ -22,7 +22,7 @@ You can read documentation online_, or generate your own local copy using
    $ python setup.py build_sphinx
 
 .. _Sphinx: http://sphinx.pocoo.org
-.. _online: http://http://z4r.github.com/asynode/
+.. _online: http://z4r.github.com/asynode/
 
 
 .. _installation:
