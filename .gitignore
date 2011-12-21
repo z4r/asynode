@@ -20,3 +20,4 @@ Documentation/
 .ropeproject/
 .idea/
 *.sh
+doc/build
