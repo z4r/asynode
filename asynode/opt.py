@@ -52,7 +52,7 @@ def main_mail(instate, outstate):
     import logging
     logging.basicConfig(level=logging.INFO)
     options, args = parse_input()
-    from common import ConnectionFactory
+    from core import ConnectionFactory
     node = ConnectionFactory(
         instate=instate, outstate=outstate
     )

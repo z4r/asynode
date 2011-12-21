@@ -15,7 +15,19 @@ __all__ = (
 )
 
 class BaseServerd(asyncore.dispatcher):
+    """ This class is responsible for incoming event.
+    On an incoming event it calls back `on_accept` function passed
+    during its initialization.
+    """
     def __init__ (self, host, port, on_accept):
+        """ Initialize and bind an Event Listener.
+        :param host: network host name or ip
+        :type host: str
+        :param port: listening port
+        :type port: int
+        :param on_accept: callback function called on accept event
+        :type on_accept: callable
+        """
         asyncore.dispatcher.__init__ (self)
         self.on_accept = on_accept
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)

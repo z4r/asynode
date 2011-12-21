@@ -1,4 +1,4 @@
-from common import ConnectionFactory
+from core import ConnectionFactory
 from state import State, Automaton
 
 class EchoOutcomingAutomaton(Automaton):
