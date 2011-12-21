@@ -1,12 +1,12 @@
 from smtplib import CRLF, quotedata as qd
 from base64 import b64encode
 
-from state import PushState, FinalState, OutcomingAutomaton, IncomingAutomaton
+from state import State, Automaton
 
 class AsyncSMTPException(Exception):
     pass
 
-class SMTPOutcomingAutomaton(OutcomingAutomaton):
+class SMTPOutcomingAutomaton(Automaton):
     def __init__(self, *args, **kwargs):
         r'''
         >>> s = SMTPOutcomingAutomaton(
@@ -16,7 +16,7 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         ...     targets = ['you@work.it', 'us@work.it',],
         ...     message = 'Hello World!\nHello Again!',
         ... )
-        >>> s._data ==  [
+        >>> s._indata ==  [
         ... (None, '220'),
         ... ('AUTH PLAIN AHVzZXIAcGFzcw==', '235'),
         ... ('HELO @work', '250'),
@@ -28,9 +28,9 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         ... ('QUIT', '221'),
         ... ]
         True
-        >>> s.next(None, 'INIT') #INIT
+        >>> s.next(None, 'INITIAL') #INIT
         State(push=None, terminator='\r\n', close=False, final=False)
-        >>> s.next(None, 'CONNECT') #CONNECT
+        >>> s.next(None) #CONNECT
         State(push=None, terminator=None, close=False, final=False)
         >>> s.next('220') #ACK CONNECT
         State(push='AUTH PLAIN AHVzZXIAcGFzcw==\r\n', terminator=None, close=False, final=False)
@@ -52,55 +52,52 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         State(push=None, terminator=None, close=False, final=True)
         '''
         super(SMTPOutcomingAutomaton, self).__init__()
-        self._data = [(None, '220')]
+        self._indata = [(None, '220')]
         if kwargs.get('auth'):
-            self._data.append((
+            self._indata.append((
                 'AUTH PLAIN ' + b64encode(("\0%s\0%s") % kwargs.get('auth')),
                 '235',
             ))
-        self._data.append(self._HELO(kwargs['localname']))
-        self._data.append(self._MAIL(kwargs['source']))
-        self._data.extend(self._RCTP(kwargs['targets']))
-        self._data.append(self._DATA())
-        self._data.append(self._QMSG(kwargs['message']))
-        self._data.append(self._QUIT())
+        self._indata.append(self._helo(kwargs['localname']))
+        self._indata.append(self._mail(kwargs['source']))
+        self._indata.extend(self._rcpt(kwargs['targets']))
+        self._indata.append(self._data())
+        self._indata.append(self._qmsg(kwargs['message']))
+        self._indata.append(self._quit())
         self._nextcheck = None
 
     def initial(self, data):
-        return PushState(terminator=CRLF)
+        return State.get_push(terminator=CRLF)
 
-    def connect(self, data):
-        return self.terminator(data)
-
-    def terminator(self, data):
+    def operative(self, data):
         self._check(data, self._nextcheck)
         try:
-            push, self._nextcheck = self._data.pop(0)
+            push, self._nextcheck = self._indata.pop(0)
             if push is not None:
                 push += CRLF
-            return PushState(push=push)
+            return State.get_push(push=push)
         except IndexError:
-            return FinalState()
+            return State.get_final()
 
     @staticmethod
-    def _HELO(localname):
+    def _helo(localname):
         return 'HELO '+ localname, '250'
 
     @staticmethod
-    def _MAIL(source):
+    def _mail(source):
         return 'MAIL FROM: <%s>'% source, '250'
 
     @staticmethod
-    def _RCTP(targets):
-        for t in targets:
-            yield 'RCPT TO: <%s>'% t, '250'
+    def _rcpt(targets):
+        for target in targets:
+            yield 'RCPT TO: <%s>'% target, '250'
 
     @staticmethod
-    def _DATA():
+    def _data():
         return 'DATA', '354'
 
     @staticmethod
-    def _QMSG(message):
+    def _qmsg(message):
         message = qd(message)
         if not message.endswith(CRLF):
             message += CRLF
@@ -108,7 +105,7 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
         return message, '250'
 
     @staticmethod
-    def _QUIT():
+    def _quit():
         return 'QUIT', '221'
 
 
@@ -118,14 +115,14 @@ class SMTPOutcomingAutomaton(OutcomingAutomaton):
             raise AsyncSMTPException(data)
 
 import socket
-class SMTPIncomingAutomaton(IncomingAutomaton):
+class SMTPIncomingAutomaton(Automaton):
     def __init__(self, *args, **kwargs):
         r'''
         >>> s = SMTPIncomingAutomaton(fqdn='z4r.buongiorno.loc')
-        >>> s.next(None, 'INIT')
+        >>> s.next(None, 'INITIAL')
         State(push='220 z4r.buongiorno.loc 1.0\r\n', terminator='\r\n', close=False, final=False)
         >>> s.next('LHLO')
-        State(push="502 Error: command 'LHLO' not implemented", terminator=None, close=False, final=False)
+        State(push="502 Error: command 'lhlo' not implemented\r\n", terminator=None, close=False, final=False)
         >>> s.next('HELO')
         State(push='501 Syntax: HELO hostname\r\n', terminator=None, close=False, final=False)
         >>> s.next('HELO @work')
@@ -159,44 +156,44 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         self.fqdn = kwargs.get('fqdn', socket.getfqdn())
         self.version = kwargs.get('version', '1.0')
         self._command = True
-        self._data = ''
+        self._indata = ''
         self._greeting = False
         self._mailfrom = None
         self._rcpttos = []
 
     def initial(self, data):
-        return PushState(
-            push='220 {s.fqdn} {s.version}'.format(s=self) + CRLF,
+        return self.reply(
+            message='220 {s.fqdn} {s.version}'.format(s=self),
             terminator=CRLF,
         )
 
-    def terminator(self, data):
+    def operative(self, data):
         if self._command:
             if not data:
                 return self.reply('500 Error: bad syntax')
             i = data.find(' ')
             if i < 0:
-                command, arg = data.upper(), None
+                command, arg = data.lower(), None
             else:
-                command, arg = data[:i].upper(), data[i+1:].strip()
+                command, arg = data[:i].lower(), data[i+1:].strip()
             method = getattr(self, '_' + command, None)
             if not method:
                 return self.not_implemented(command)
             return method(arg)
         else:
-            return self._QMSG(data)
+            return self._qmsg(data)
 
-    def _QMSG(self, arg):
+    def _qmsg(self, arg):
         indata = []
         for text in arg.split(CRLF):
             if text and text[0] == '.':
                 text = text[1:]
             indata.append(text[1:])
-        self._data = '\n'.join(indata)
+        self._indata = '\n'.join(indata)
         self._command = True
         return self.reply('250 Ok', CRLF)
 
-    def _HELO(self, arg):
+    def _helo(self, arg):
         if not arg:
             return self.reply('501 Syntax: HELO hostname')
         if self._greeting:
@@ -204,8 +201,8 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         self._greeting = arg
         return self.reply('250 {s.fqdn}'.format(s=self))
 
-    def _MAIL(self, arg):
-        address = self.__getaddr('FROM:', arg) if arg else None
+    def _mail(self, arg):
+        address = self.cleanaddr('FROM:', arg) if arg else None
         if not address:
             return self.reply('501 Syntax: MAIL FROM:<address>')
         if self._mailfrom:
@@ -213,16 +210,16 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         self._mailfrom = address
         return self.reply('250 Ok')
 
-    def _RCPT(self, arg):
+    def _rcpt(self, arg):
         if not self._mailfrom:
             return self.reply('503 Error: need MAIL command')
-        address = self.__getaddr('TO:', arg) if arg else None
+        address = self.cleanaddr('TO:', arg) if arg else None
         if not address:
             return self.reply('501 Syntax: RCPT TO: <address>')
         self._rcpttos.append(address)
         return self.reply('250 Ok')
 
-    def _DATA(self, arg):
+    def _data(self, arg):
         if not self._rcpttos:
             return self.reply('503 Error: need RCPT command')
         if arg:
@@ -230,23 +227,23 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
         self._command = False
         return self.reply('354 End data with <CR><LF>.<CR><LF>', CRLF+'.'+CRLF)
 
-    def _QUIT(self, arg):
-        return FinalState(push='221 Bye', close=True)
+    def _quit(self, arg):
+        return State.get_final(push='221 Bye', close=True)
 
-    def _NOOP(self, arg):
+    def _noop(self, arg):
         return self.reply('501 Syntax: NOOP' if arg else '250 Ok')
 
-    def _RSET(self, arg):
+    def _rset(self, arg):
         if arg:
             return self.reply('501 Syntax: RSET')
         self._mailfrom = None
         self._rcpttos = []
-        self._data = ''
+        self._indata = ''
         self._command = True
         return self.reply('250 Ok')
 
     @staticmethod
-    def __getaddr(keyword, arg):
+    def cleanaddr(keyword, arg):
         address = None
         keylen = len(keyword)
         if arg[:keylen].upper() == keyword:
@@ -259,49 +256,15 @@ class SMTPIncomingAutomaton(IncomingAutomaton):
 
     @staticmethod
     def reply(message, terminator=None):
-        return PushState(message + CRLF, terminator)
+        return State.get_push(message + CRLF, terminator)
 
-    @staticmethod
-    def not_implemented(command):
-        return PushState(
-            '502 Error: command {c!r} not implemented'.format(c=command) + CRLF
+    @classmethod
+    def not_implemented(cls, command):
+        return cls.reply(
+            '502 Error: command {c!r} not implemented'.format(c=command)
         )
-
 
 
 if __name__ == '__main__':
-    def interactive():
-        source = raw_input("Please enter a source: ")
-        targets = raw_input("Please enter a list of targets [',' separated]: ")
-        message = [raw_input("Please enter text to send [CRTL+C to STOP]: ")]
-        while True:
-            try:
-                message.append(raw_input())
-            except KeyboardInterrupt:
-                break
-        return dict(
-            #auth = ('user', 'pass'),
-            localname = socket.getfqdn(),
-            source = source,
-            targets = targets.split(','),
-            message = '\n'.join(message),
-        )
-    import logging
-    logging.basicConfig(level=logging.INFO)
-    from opt import parse_input
-    OPTIONS, ARGS = parse_input()
-    import asyncore
-    from common import ConnectionFactory
-    NODE = ConnectionFactory(
-        instate=SMTPIncomingAutomaton, outstate=SMTPOutcomingAutomaton
-    )
-    if OPTIONS.server:
-        NODE.listen(OPTIONS.host, OPTIONS.port)
-    else:
-        KWARGS = interactive()
-        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS, **KWARGS) # pylint: disable=W0142
-    try:
-        asyncore.loop()
-    except KeyboardInterrupt:
-        import sys
-        sys.exit()
+    from opt import main_mail
+    main_mail(instate=SMTPIncomingAutomaton, outstate=SMTPOutcomingAutomaton)

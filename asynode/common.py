@@ -8,6 +8,12 @@ import socket
 import logging
 LOGGER = logging.getLogger('asynode')
 
+__all__ = (
+    'BaseServerd',
+    'Connection',
+    'ConnectionFactory',
+)
+
 class BaseServerd(asyncore.dispatcher):
     def __init__ (self, host, port, on_accept):
         asyncore.dispatcher.__init__ (self)
@@ -52,12 +58,12 @@ class Connection(asynchat.async_chat):
 
     def handle_connect(self):
         LOGGER.info('Connected to {a}'.format(a=self.remote))
-        self._process('CONNECT', self._buffer, self.cid, self.callback)
+        self._process('OPERATIVE', self._buffer, self.cid, self.callback)
 
     def found_terminator(self):
         if not self._buffer:
             self.handle_close()
-        self._process('TERMINATOR', self._buffer, self.cid, self.callback)
+        self._process('OPERATIVE', self._buffer, self.cid, self.callback)
         self._buffer = []
 
     def handle_close(self):

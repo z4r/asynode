@@ -2,42 +2,24 @@ from collections import namedtuple
 
 __all__ = (
     'State',
-    'PushState',
-    'PassState',
-    'FinalState',
-    'IncomingAutomaton',
-    'OutcomingAutomaton',
+    'Automaton',
 )
 
-State = namedtuple('State', ('push', 'terminator', 'close', 'final'))
+class State(namedtuple('State', ('push', 'terminator', 'close', 'final'))):
+    @classmethod
+    def get_push(cls, push=None, terminator=None):
+        return cls(push, terminator, False, False)
 
-def PassState():
-    return State(None, None, False, False)
-
-def PushState(push=None, terminator=None):
-    return State(push, terminator, False, False)
-
-def FinalState(push=None, close=False):
-    return State(push, None, close, True)
+    @classmethod
+    def get_final(cls, push=None, close=False):
+        return cls(push, None, close, True)
 
 class Automaton(object):
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def next(self, data, state='TERMINATOR'):
+    def next(self, data, state='OPERATIVE'):
         return getattr(self, state.lower())(data)
 
     def initial(self, data):
         raise NotImplementedError
 
-    def terminator(self, data):
-        raise NotImplementedError
-
-
-class IncomingAutomaton(Automaton):
-    pass
-
-
-class OutcomingAutomaton(Automaton):
-    def connect(self, data):
+    def operative(self, data):
         raise NotImplementedError

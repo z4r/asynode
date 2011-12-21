@@ -1,50 +1,42 @@
 from common import ConnectionFactory
-from state import PushState, FinalState, IncomingAutomaton, OutcomingAutomaton
+from state import State, Automaton
 
-class EchoOutcomingAutomaton(OutcomingAutomaton):
+class EchoOutcomingAutomaton(Automaton):
     def __init__(self, *args):
         self._data = list(args)
         super(EchoOutcomingAutomaton, self).__init__()
 
     def initial(self, data):
-        return PushState(terminator='\n')
+        return State.get_push(terminator='\n')
 
-    def connect(self, data):
-        return self.terminator(data)
-
-    def terminator(self, data):
+    def operative(self, data):
         try:
-            return PushState(push=self._data.pop(0)+'\n')
+            return State.get_push(push=self._data.pop(0)+'\n')
         except IndexError:
-            return FinalState(push='\n')
+            return State.get_final(push='\n')
 
 
-class EchoIncomingAutomaton(IncomingAutomaton):
+class EchoIncomingAutomaton(Automaton):
     def initial(self, data):
-        return PushState(terminator='\n')
+        return State.get_push(terminator='\n')
 
-    def terminator(self, data):
+    def operative(self, data):
         if data:
-            return PushState(push=data+'\n')
+            return State.get_push(push=data+'\n')
         else:
-            return FinalState()
+            return State.get_final()
 
 
 if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO)
-    from opt import parse_input
+    from opt import parse_input, main_loop
     OPTIONS, ARGS = parse_input()
-    import asyncore
     NODE = ConnectionFactory(
         instate=EchoIncomingAutomaton, outstate=EchoOutcomingAutomaton
     )
     if OPTIONS.server:
         NODE.listen(OPTIONS.host, OPTIONS.port)
     else:
-        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS) # pylint: disable=W0142
-    try:
-        asyncore.loop()
-    except KeyboardInterrupt:
-        import sys
-        sys.exit()
+        NODE.send(OPTIONS.host, OPTIONS.port, *ARGS)
+    main_loop()
