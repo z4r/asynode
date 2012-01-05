@@ -26,6 +26,7 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <link rel="top" title="asynode 0.1 documentation" href="index.html" />
+    <link rel="next" title="2. Asynode SMTP Automaton" href="smtp.html" />
     <link rel="prev" title="Welcome to asynode’s documentation!" href="index.html" /> 
   </head>
   <body>
@@ -38,6 +39,9 @@
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="smtp.html" title="2. Asynode SMTP Automaton"
+             accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="index.html" title="Welcome to asynode’s documentation!"
              accesskey="P">previous</a> |</li>
@@ -62,13 +66,13 @@ protocol execution you need to interpret an event.</p>
 <h2>1.1. Connection<a class="headerlink" href="#connection" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="asynode.core.Connection">
-<em class="property">class </em><tt class="descclassname">asynode.core.</tt><tt class="descname">Connection</tt><big>(</big><em>cid</em>, <em>callback</em>, <em>sock=None</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#Connection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.Connection" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">asynode.core.</tt><tt class="descname">Connection</tt><big>(</big><em>automaton</em>, <em>sock=None</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#Connection"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.Connection" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="http://docs.python.org/library/asynchat.html#asynchat.async_chat" title="(in Python v2.7)"><tt class="xref py py-class docutils literal"><span class="pre">asynchat.async_chat</span></tt></a></p>
 <p>A <a class="reference internal" href="#asynode.core.Connection" title="asynode.core.Connection"><tt class="xref py py-class docutils literal"><span class="pre">Connection</span></tt></a> can implement an event handler (<strong>SERVER MODE</strong>)
 or an event creator (<strong>CLIENT MODE</strong>). Input and output data management is
 handled through some break points to an external object that notify
 something to be managed. After managing a break point you can re-enter
-inside this class via <a class="reference internal" href="#asynode.core.Connection.callback" title="asynode.core.Connection.callback"><tt class="xref py py-meth docutils literal"><span class="pre">callback()</span></tt></a>.</p>
+inside this class via <tt class="xref py py-meth docutils literal"><span class="pre">callback()</span></tt>.</p>
 <table border="1" class="docutils">
 <colgroup>
 <col width="59%" />
@@ -100,8 +104,7 @@ inside this class via <a class="reference internal" href="#asynode.core.Connecti
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>cid</strong> (<em>hashable</em>) &#8211; the connection identifier.</li>
-<li><strong>callback</strong> (<a class="reference external" href="http://docs.python.org/library/functions.html#callable" title="(in Python v2.7)"><em>callable</em></a>) &#8211; break point function.</li>
+<li><strong>automaton</strong> (<tt class="xref py py-class docutils literal"><span class="pre">state.Automaton</span></tt>) &#8211; break point function.</li>
 <li><strong>sock</strong> (<tt class="xref py py-class docutils literal"><span class="pre">socket</span></tt>) &#8211; an initialized <cite>socket</cite> [<strong>SERVER MODE</strong>] or nothing [<strong>CLIENT MODE</strong>].</li>
 </ul>
 </td>
@@ -117,31 +120,17 @@ inside this class via <a class="reference internal" href="#asynode.core.Connecti
 <p class="first admonition-title">Warning</p>
 <p class="last">Probably you wouldn&#8217;t subclass it.</p>
 </div>
-<dl class="method">
-<dt id="asynode.core.Connection.callback">
-<tt class="descname">callback</tt><big>(</big><em>data=None</em>, <em>terminator=None</em>, <em>close=False</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#Connection.callback"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.Connection.callback" title="Permalink to this definition">¶</a></dt>
-<dd><p>This method, <em>passed to the event handler function</em>, is the entry
-point after a complete break point handling.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>data</strong> (<tt class="xref py py-class docutils literal"><span class="pre">str</span></tt>) &#8211; message to send to the other peer.</li>
-<li><strong>terminator</strong> (<tt class="xref py py-class docutils literal"><span class="pre">str</span></tt> or <tt class="xref py py-class docutils literal"><span class="pre">int</span></tt>) &#8211; new internal terminator.</li>
-<li><strong>close</strong> (<tt class="xref py py-class docutils literal"><span class="pre">bool</span></tt>) &#8211; close the channel when done.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
 <dl class="attribute">
 <dt id="asynode.core.Connection.local">
 <tt class="descname">local</tt><a class="reference internal" href="_modules/asynode/core.html#Connection.local"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.Connection.local" title="Permalink to this definition">¶</a></dt>
 <dd><p>Return the address of the local endpoint.
 For IP sockets, the address info is a pair (hostaddr, port).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="asynode.core.Connection.process">
+<tt class="descname">process</tt><big>(</big><em>state</em>, <em>data</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#Connection.process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.Connection.process" title="Permalink to this definition">¶</a></dt>
+<dd><p>Process a break point</p>
 </dd></dl>
 
 <dl class="attribute">
@@ -215,36 +204,10 @@ break point handler.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="asynode.core.ConnectionFactory.get_next">
-<tt class="descname">get_next</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/asynode/core.html#ConnectionFactory.get_next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.ConnectionFactory.get_next" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a new connection id</p>
-</dd></dl>
-
-<dl class="method">
 <dt id="asynode.core.ConnectionFactory.listen">
-<tt class="descname">listen</tt><big>(</big><em>host</em>, <em>port</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#ConnectionFactory.listen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.ConnectionFactory.listen" title="Permalink to this definition">¶</a></dt>
+<tt class="descname">listen</tt><big>(</big><em>host</em>, <em>port</em>, <em>on_accept=None</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#ConnectionFactory.listen"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.ConnectionFactory.listen" title="Permalink to this definition">¶</a></dt>
 <dd><p>Create a listener (default <a class="reference internal" href="#asynode.core.BaseServerd" title="asynode.core.BaseServerd"><tt class="xref py py-class docutils literal"><span class="pre">BaseServerd</span></tt></a>) bound on
 host:port.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="asynode.core.ConnectionFactory.process">
-<tt class="descname">process</tt><big>(</big><em>state</em>, <em>data</em>, <em>cid</em>, <em>callback</em><big>)</big><a class="reference internal" href="_modules/asynode/core.html#ConnectionFactory.process"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.core.ConnectionFactory.process" title="Permalink to this definition">¶</a></dt>
-<dd><p>Link between connections and break point handlers.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>state</strong> (<tt class="xref py py-class docutils literal"><span class="pre">str</span></tt>) &#8211; break point type.</li>
-<li><strong>data</strong> (<tt class="xref py py-class docutils literal"><span class="pre">list</span></tt>) &#8211; break point buffer.</li>
-<li><strong>cid</strong> (<em>hashable</em>) &#8211; break point sender identifier.</li>
-<li><strong>callback</strong> (<em>callable.</em>) &#8211; connection entry point.</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
 </dd></dl>
 
 <dl class="method">
@@ -278,6 +241,9 @@ host:port.</p>
   <h4>Previous topic</h4>
   <p class="topless"><a href="index.html"
                         title="previous chapter">Welcome to asynode&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="smtp.html"
+                        title="next chapter">2. Asynode SMTP Automaton</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/core.txt"
@@ -309,6 +275,9 @@ host:port.</p>
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
+        <li class="right" >
+          <a href="smtp.html" title="2. Asynode SMTP Automaton"
+             >next</a> |</li>
         <li class="right" >
           <a href="index.html" title="Welcome to asynode’s documentation!"
              >previous</a> |</li>

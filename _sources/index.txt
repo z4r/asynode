@@ -17,6 +17,7 @@ Contents
    :numbered:
 
    core
+   smtp
 
 Indices and tables
 ==================

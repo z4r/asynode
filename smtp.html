@@ -1,0 +1,196 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2. Asynode SMTP Automaton &mdash; asynode 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="asynode 0.1 documentation" href="index.html" />
+    <link rel="prev" title="1. Asynode Core" href="core.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.html" title="1. Asynode Core"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">asynode 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-asynode.smtp">
+<span id="asynode-smtp-automaton"></span><h1>2. Asynode SMTP Automaton<a class="headerlink" href="#module-asynode.smtp" title="Permalink to this headline">¶</a></h1>
+<dl class="class">
+<dt id="asynode.smtp.SMTPIncomingAutomaton">
+<em class="property">class </em><tt class="descclassname">asynode.smtp.</tt><tt class="descname">SMTPIncomingAutomaton</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="reference internal" href="_modules/asynode/smtp.html#SMTPIncomingAutomaton"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.smtp.SMTPIncomingAutomaton" title="Permalink to this definition">¶</a></dt>
+<dd><div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">s</span> <span class="o">=</span> <span class="n">SMTPIncomingAutomaton</span><span class="p">(</span><span class="n">fqdn</span><span class="o">=</span><span class="s">&#39;z4r.buongiorno.loc&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="s">&#39;INITIAL&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;220 z4r.buongiorno.loc 1.0\r\n&#39;, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;LHLO&#39;</span><span class="p">)</span>
+<span class="go">State(push=&quot;502 Error: command &#39;lhlo&#39; not implemented\r\n&quot;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;HELO&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;501 Syntax: HELO hostname\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;HELO @work&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;250 z4r.buongiorno.loc\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;HELO @work&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;503 Duplicate HELO/EHLO\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;RCPT TO: &lt;you@work.it&gt;&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;503 Error: need MAIL command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;MAIL FROM: &#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;501 Syntax: MAIL FROM:&lt;address&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;MAIL FROM: &lt;me@work.it&gt;&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;MAIL FROM: &lt;me@work.it&gt;&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;503 Error: nested MAIL command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;DATA&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;503 Error: need RCPT command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;RCPT TO: &lt;you@work.it&gt;&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;RCPT TO: &lt;us@work.it&gt;&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;DATA SEND&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;501 Syntax: DATA\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;DATA&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;354 End data with &lt;CR&gt;&lt;LF&gt;.&lt;CR&gt;&lt;LF&gt;\r\n&#39;, terminator=&#39;\r\n.\r\n&#39;, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;Hello World!</span><span class="se">\r\n</span><span class="s">Hello Again!&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;250 Ok\r\n&#39;, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;QUIT&#39;</span><span class="p">)</span>
+<span class="go">State(push=&#39;221 Bye&#39;, terminator=None, close=True, final=True)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="class">
+<dt id="asynode.smtp.SMTPOutcomingAutomaton">
+<em class="property">class </em><tt class="descclassname">asynode.smtp.</tt><tt class="descname">SMTPOutcomingAutomaton</tt><big>(</big><em>source</em>, <em>targets</em>, <em>message</em>, <em>localname</em>, <em>auth=None</em><big>)</big><a class="reference internal" href="_modules/asynode/smtp.html#SMTPOutcomingAutomaton"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#asynode.smtp.SMTPOutcomingAutomaton" title="Permalink to this definition">¶</a></dt>
+<dd><div class="highlight-python"><div class="highlight"><pre><span class="gp">&gt;&gt;&gt; </span><span class="n">s</span> <span class="o">=</span> <span class="n">SMTPOutcomingAutomaton</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">auth</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;user&#39;</span><span class="p">,</span> <span class="s">&#39;pass&#39;</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="n">localname</span> <span class="o">=</span> <span class="s">&#39;@work&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">source</span> <span class="o">=</span> <span class="s">&#39;me@work.it&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">targets</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;you@work.it&#39;</span><span class="p">,</span> <span class="s">&#39;us@work.it&#39;</span><span class="p">,],</span>
+<span class="gp">... </span>    <span class="n">message</span> <span class="o">=</span> <span class="s">&#39;Hello World!</span><span class="se">\n</span><span class="s">Hello Again!&#39;</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">_indata</span> <span class="o">==</span>  <span class="p">[</span>
+<span class="gp">... </span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="s">&#39;220&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;AUTH PLAIN AHVzZXIAcGFzcw==&#39;</span><span class="p">,</span> <span class="s">&#39;235&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;HELO @work&#39;</span><span class="p">,</span> <span class="s">&#39;250&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;MAIL FROM: &lt;me@work.it&gt;&#39;</span><span class="p">,</span> <span class="s">&#39;250&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;RCPT TO: &lt;you@work.it&gt;&#39;</span><span class="p">,</span> <span class="s">&#39;250&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;RCPT TO: &lt;us@work.it&gt;&#39;</span><span class="p">,</span> <span class="s">&#39;250&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;DATA&#39;</span><span class="p">,</span> <span class="s">&#39;354&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;Hello World!</span><span class="se">\r\n</span><span class="s">Hello Again!</span><span class="se">\r\n</span><span class="s">.&#39;</span><span class="p">,</span> <span class="s">&#39;250&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">(</span><span class="s">&#39;QUIT&#39;</span><span class="p">,</span> <span class="s">&#39;221&#39;</span><span class="p">),</span>
+<span class="gp">... </span><span class="p">]</span>
+<span class="go">True</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="s">&#39;INITIAL&#39;</span><span class="p">)</span> <span class="c">#INIT</span>
+<span class="go">State(push=None, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span> <span class="c">#CONNECT</span>
+<span class="go">State(push=None, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;220&#39;</span><span class="p">)</span> <span class="c">#ACK CONNECT</span>
+<span class="go">State(push=&#39;AUTH PLAIN AHVzZXIAcGFzcw==\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;235&#39;</span><span class="p">)</span> <span class="c">#ACK AUTH</span>
+<span class="go">State(push=&#39;HELO @work\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;250&#39;</span><span class="p">)</span> <span class="c">#ACK HELO</span>
+<span class="go">State(push=&#39;MAIL FROM: &lt;me@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;250&#39;</span><span class="p">)</span> <span class="c">#ACK MAIL</span>
+<span class="go">State(push=&#39;RCPT TO: &lt;you@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;250&#39;</span><span class="p">)</span> <span class="c">#ACK RCPT_1</span>
+<span class="go">State(push=&#39;RCPT TO: &lt;us@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;250&#39;</span><span class="p">)</span> <span class="c">#ACK RCPT_2</span>
+<span class="go">State(push=&#39;DATA\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;354&#39;</span><span class="p">)</span> <span class="c">#ACK DATA</span>
+<span class="go">State(push=&#39;Hello World!\r\nHello Again!\r\n.\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;250&#39;</span><span class="p">)</span> <span class="c">#ACK SENDDATA</span>
+<span class="go">State(push=&#39;QUIT\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">s</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;221&#39;</span><span class="p">)</span> <span class="c">#ACK QUIT</span>
+<span class="go">State(push=None, terminator=None, close=False, final=True)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.html"
+                        title="previous chapter">1. Asynode Core</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/smtp.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="core.html" title="1. Asynode Core"
+             >previous</a> |</li>
+        <li><a href="index.html">asynode 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, Andrea &#39;z4r&#39; De Marco.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

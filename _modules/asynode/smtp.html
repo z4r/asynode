@@ -1,0 +1,364 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>asynode.smtp &mdash; asynode 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="asynode 0.1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">asynode 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for asynode.smtp</h1><div class="highlight"><pre>
+<span class="kn">from</span> <span class="nn">smtplib</span> <span class="kn">import</span> <span class="n">CRLF</span><span class="p">,</span> <span class="n">quotedata</span> <span class="k">as</span> <span class="n">qd</span>
+<span class="kn">from</span> <span class="nn">base64</span> <span class="kn">import</span> <span class="n">b64encode</span>
+
+<span class="kn">from</span> <span class="nn">state</span> <span class="kn">import</span> <span class="n">State</span><span class="p">,</span> <span class="n">Automaton</span>
+
+<span class="k">class</span> <span class="nc">AsyncSMTPException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+<div class="viewcode-block" id="SMTPOutcomingAutomaton"><a class="viewcode-back" href="../../smtp.html#asynode.smtp.SMTPOutcomingAutomaton">[docs]</a><span class="k">class</span> <span class="nc">SMTPOutcomingAutomaton</span><span class="p">(</span><span class="n">Automaton</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;</span>
+<span class="sd">    &gt;&gt;&gt; s = SMTPOutcomingAutomaton(</span>
+<span class="sd">    ...     auth = (&#39;user&#39;, &#39;pass&#39;),</span>
+<span class="sd">    ...     localname = &#39;@work&#39;,</span>
+<span class="sd">    ...     source = &#39;me@work.it&#39;,</span>
+<span class="sd">    ...     targets = [&#39;you@work.it&#39;, &#39;us@work.it&#39;,],</span>
+<span class="sd">    ...     message = &#39;Hello World!\nHello Again!&#39;,</span>
+<span class="sd">    ... )</span>
+<span class="sd">    &gt;&gt;&gt; s._indata ==  [</span>
+<span class="sd">    ... (None, &#39;220&#39;),</span>
+<span class="sd">    ... (&#39;AUTH PLAIN AHVzZXIAcGFzcw==&#39;, &#39;235&#39;),</span>
+<span class="sd">    ... (&#39;HELO @work&#39;, &#39;250&#39;),</span>
+<span class="sd">    ... (&#39;MAIL FROM: &lt;me@work.it&gt;&#39;, &#39;250&#39;),</span>
+<span class="sd">    ... (&#39;RCPT TO: &lt;you@work.it&gt;&#39;, &#39;250&#39;),</span>
+<span class="sd">    ... (&#39;RCPT TO: &lt;us@work.it&gt;&#39;, &#39;250&#39;),</span>
+<span class="sd">    ... (&#39;DATA&#39;, &#39;354&#39;),</span>
+<span class="sd">    ... (&#39;Hello World!\r\nHello Again!\r\n.&#39;, &#39;250&#39;),</span>
+<span class="sd">    ... (&#39;QUIT&#39;, &#39;221&#39;),</span>
+<span class="sd">    ... ]</span>
+<span class="sd">    True</span>
+<span class="sd">    &gt;&gt;&gt; s.next(None, &#39;INITIAL&#39;) #INIT</span>
+<span class="sd">    State(push=None, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(None) #CONNECT</span>
+<span class="sd">    State(push=None, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;220&#39;) #ACK CONNECT</span>
+<span class="sd">    State(push=&#39;AUTH PLAIN AHVzZXIAcGFzcw==\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;235&#39;) #ACK AUTH</span>
+<span class="sd">    State(push=&#39;HELO @work\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;250&#39;) #ACK HELO</span>
+<span class="sd">    State(push=&#39;MAIL FROM: &lt;me@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;250&#39;) #ACK MAIL</span>
+<span class="sd">    State(push=&#39;RCPT TO: &lt;you@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;250&#39;) #ACK RCPT_1</span>
+<span class="sd">    State(push=&#39;RCPT TO: &lt;us@work.it&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;250&#39;) #ACK RCPT_2</span>
+<span class="sd">    State(push=&#39;DATA\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;354&#39;) #ACK DATA</span>
+<span class="sd">    State(push=&#39;Hello World!\r\nHello Again!\r\n.\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;250&#39;) #ACK SENDDATA</span>
+<span class="sd">    State(push=&#39;QUIT\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;221&#39;) #ACK QUIT</span>
+<span class="sd">    State(push=None, terminator=None, close=False, final=True)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">source</span><span class="p">,</span> <span class="n">targets</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">localname</span><span class="p">,</span> <span class="n">auth</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SMTPOutcomingAutomaton</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span> <span class="o">=</span> <span class="p">[(</span><span class="bp">None</span><span class="p">,</span> <span class="s">&#39;220&#39;</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="n">auth</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">((</span>
+                <span class="s">&#39;AUTH PLAIN &#39;</span> <span class="o">+</span> <span class="n">b64encode</span><span class="p">((</span><span class="s">&quot;</span><span class="se">\0</span><span class="si">%s</span><span class="se">\0</span><span class="si">%s</span><span class="s">&quot;</span><span class="p">)</span> <span class="o">%</span> <span class="n">auth</span><span class="p">),</span>
+                <span class="s">&#39;235&#39;</span><span class="p">,</span>
+            <span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_helo</span><span class="p">(</span><span class="n">localname</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_mail</span><span class="p">(</span><span class="n">source</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_rcpt</span><span class="p">(</span><span class="n">targets</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_qmsg</span><span class="p">(</span><span class="n">message</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_quit</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nextcheck</span> <span class="o">=</span> <span class="bp">None</span>
+
+    <span class="k">def</span> <span class="nf">initial</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">get_push</span><span class="p">(</span><span class="n">terminator</span><span class="o">=</span><span class="n">CRLF</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">operative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nextcheck</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">push</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nextcheck</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">push</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">push</span> <span class="o">+=</span> <span class="n">CRLF</span>
+            <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">get_push</span><span class="p">(</span><span class="n">push</span><span class="o">=</span><span class="n">push</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">get_final</span><span class="p">()</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_helo</span><span class="p">(</span><span class="n">localname</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;HELO &#39;</span><span class="o">+</span> <span class="n">localname</span><span class="p">,</span> <span class="s">&#39;250&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_mail</span><span class="p">(</span><span class="n">source</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s">&#39;MAIL FROM: &lt;</span><span class="si">%s</span><span class="s">&gt;&#39;</span><span class="o">%</span> <span class="n">source</span><span class="p">,</span> <span class="s">&#39;250&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_rcpt</span><span class="p">(</span><span class="n">targets</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="s">&#39;RCPT TO: &lt;</span><span class="si">%s</span><span class="s">&gt;&#39;</span><span class="o">%</span> <span class="n">target</span><span class="p">,</span> <span class="s">&#39;250&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_data</span><span class="p">():</span>
+        <span class="k">return</span> <span class="s">&#39;DATA&#39;</span><span class="p">,</span> <span class="s">&#39;354&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_qmsg</span><span class="p">(</span><span class="n">message</span><span class="p">):</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">qd</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">message</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">CRLF</span><span class="p">):</span>
+            <span class="n">message</span> <span class="o">+=</span> <span class="n">CRLF</span>
+        <span class="n">message</span> <span class="o">+=</span> <span class="s">&quot;.&quot;</span>
+        <span class="k">return</span> <span class="n">message</span><span class="p">,</span> <span class="s">&#39;250&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_quit</span><span class="p">():</span>
+        <span class="k">return</span> <span class="s">&#39;QUIT&#39;</span><span class="p">,</span> <span class="s">&#39;221&#39;</span>
+
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_check</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">success_code</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">success_code</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span>  <span class="ow">and</span> <span class="ow">not</span> <span class="n">data</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">success_code</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">AsyncSMTPException</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</div>
+<span class="kn">import</span> <span class="nn">socket</span>
+<div class="viewcode-block" id="SMTPIncomingAutomaton"><a class="viewcode-back" href="../../smtp.html#asynode.smtp.SMTPIncomingAutomaton">[docs]</a><span class="k">class</span> <span class="nc">SMTPIncomingAutomaton</span><span class="p">(</span><span class="n">Automaton</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;</span>
+<span class="sd">    &gt;&gt;&gt; s = SMTPIncomingAutomaton(fqdn=&#39;z4r.buongiorno.loc&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(None, &#39;INITIAL&#39;)</span>
+<span class="sd">    State(push=&#39;220 z4r.buongiorno.loc 1.0\r\n&#39;, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;LHLO&#39;)</span>
+<span class="sd">    State(push=&quot;502 Error: command &#39;lhlo&#39; not implemented\r\n&quot;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;HELO&#39;)</span>
+<span class="sd">    State(push=&#39;501 Syntax: HELO hostname\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;HELO @work&#39;)</span>
+<span class="sd">    State(push=&#39;250 z4r.buongiorno.loc\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;HELO @work&#39;)</span>
+<span class="sd">    State(push=&#39;503 Duplicate HELO/EHLO\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;RCPT TO: &lt;you@work.it&gt;&#39;)</span>
+<span class="sd">    State(push=&#39;503 Error: need MAIL command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;MAIL FROM: &#39;)</span>
+<span class="sd">    State(push=&#39;501 Syntax: MAIL FROM:&lt;address&gt;\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;MAIL FROM: &lt;me@work.it&gt;&#39;)</span>
+<span class="sd">    State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;MAIL FROM: &lt;me@work.it&gt;&#39;)</span>
+<span class="sd">    State(push=&#39;503 Error: nested MAIL command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;DATA&#39;)</span>
+<span class="sd">    State(push=&#39;503 Error: need RCPT command\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;RCPT TO: &lt;you@work.it&gt;&#39;)</span>
+<span class="sd">    State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;RCPT TO: &lt;us@work.it&gt;&#39;)</span>
+<span class="sd">    State(push=&#39;250 Ok\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;DATA SEND&#39;)</span>
+<span class="sd">    State(push=&#39;501 Syntax: DATA\r\n&#39;, terminator=None, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;DATA&#39;)</span>
+<span class="sd">    State(push=&#39;354 End data with &lt;CR&gt;&lt;LF&gt;.&lt;CR&gt;&lt;LF&gt;\r\n&#39;, terminator=&#39;\r\n.\r\n&#39;, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;Hello World!\r\nHello Again!&#39;)</span>
+<span class="sd">    State(push=&#39;250 Ok\r\n&#39;, terminator=&#39;\r\n&#39;, close=False, final=False)</span>
+<span class="sd">    &gt;&gt;&gt; s.next(&#39;QUIT&#39;)</span>
+<span class="sd">    State(push=&#39;221 Bye&#39;, terminator=None, close=True, final=True)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SMTPIncomingAutomaton</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fqdn</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;fqdn&#39;</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">getfqdn</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">version</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;version&#39;</span><span class="p">,</span> <span class="s">&#39;1.0&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_command</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_greeting</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mailfrom</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rcpttos</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">initial</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span>
+            <span class="n">message</span><span class="o">=</span><span class="s">&#39;220 {s.fqdn} {s.version}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="p">),</span>
+            <span class="n">terminator</span><span class="o">=</span><span class="n">CRLF</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">operative</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_command</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;500 Error: bad syntax&#39;</span><span class="p">)</span>
+            <span class="n">i</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">command</span><span class="p">,</span> <span class="n">arg</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="bp">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">command</span><span class="p">,</span> <span class="n">arg</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span> <span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="n">method</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s">&#39;_&#39;</span> <span class="o">+</span> <span class="n">command</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">method</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">not_implemented</span><span class="p">(</span><span class="n">command</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">method</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_qmsg</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_qmsg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="n">indata</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">text</span> <span class="ow">in</span> <span class="n">arg</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">CRLF</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">text</span> <span class="ow">and</span> <span class="n">text</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;.&#39;</span><span class="p">:</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="n">indata</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">indata</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_command</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;250 Ok&#39;</span><span class="p">,</span> <span class="n">CRLF</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_helo</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">arg</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: HELO hostname&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_greeting</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;503 Duplicate HELO/EHLO&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_greeting</span> <span class="o">=</span> <span class="n">arg</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;250 {s.fqdn}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">s</span><span class="o">=</span><span class="bp">self</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_mail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="n">address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cleanaddr</span><span class="p">(</span><span class="s">&#39;FROM:&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span> <span class="k">if</span> <span class="n">arg</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">address</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: MAIL FROM:&lt;address&gt;&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mailfrom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;503 Error: nested MAIL command&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mailfrom</span> <span class="o">=</span> <span class="n">address</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;250 Ok&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_rcpt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mailfrom</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;503 Error: need MAIL command&#39;</span><span class="p">)</span>
+        <span class="n">address</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cleanaddr</span><span class="p">(</span><span class="s">&#39;TO:&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span> <span class="k">if</span> <span class="n">arg</span> <span class="k">else</span> <span class="bp">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">address</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: RCPT TO: &lt;address&gt;&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rcpttos</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">address</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;250 Ok&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rcpttos</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;503 Error: need RCPT command&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">arg</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: DATA&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_command</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;354 End data with &lt;CR&gt;&lt;LF&gt;.&lt;CR&gt;&lt;LF&gt;&#39;</span><span class="p">,</span> <span class="n">CRLF</span><span class="o">+</span><span class="s">&#39;.&#39;</span><span class="o">+</span><span class="n">CRLF</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_quit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">get_final</span><span class="p">(</span><span class="n">push</span><span class="o">=</span><span class="s">&#39;221 Bye&#39;</span><span class="p">,</span> <span class="n">close</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_noop</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: NOOP&#39;</span> <span class="k">if</span> <span class="n">arg</span> <span class="k">else</span> <span class="s">&#39;250 Ok&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_rset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">arg</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;501 Syntax: RSET&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mailfrom</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rcpttos</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indata</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_command</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="s">&#39;250 Ok&#39;</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">cleanaddr</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">arg</span><span class="p">):</span>
+        <span class="n">address</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">keylen</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">arg</span><span class="p">[:</span><span class="n">keylen</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">==</span> <span class="n">keyword</span><span class="p">:</span>
+            <span class="n">address</span> <span class="o">=</span> <span class="n">arg</span><span class="p">[</span><span class="n">keylen</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">address</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="n">address</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&lt;&#39;</span> <span class="ow">and</span> <span class="n">address</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&gt;&#39;</span> <span class="ow">and</span> <span class="n">address</span> <span class="o">!=</span> <span class="s">&#39;&lt;&gt;&#39;</span><span class="p">:</span>
+                <span class="n">address</span> <span class="o">=</span> <span class="n">address</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">address</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">reply</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">terminator</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">State</span><span class="o">.</span><span class="n">get_push</span><span class="p">(</span><span class="n">message</span> <span class="o">+</span> <span class="n">CRLF</span><span class="p">,</span> <span class="n">terminator</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">not_implemented</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">command</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span>
+            <span class="s">&#39;502 Error: command {c!r} not implemented&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="o">=</span><span class="n">command</span><span class="p">)</span>
+        <span class="p">)</span>
+
+</div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">opt</span> <span class="kn">import</span> <span class="n">main_mail</span>
+    <span class="n">main_mail</span><span class="p">(</span><span class="n">instate</span><span class="o">=</span><span class="n">SMTPIncomingAutomaton</span><span class="p">,</span> <span class="n">outstate</span><span class="o">=</span><span class="n">SMTPOutcomingAutomaton</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">asynode 0.1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, Andrea &#39;z4r&#39; De Marco.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.2.
+    </div>
+  </body>
+</html>

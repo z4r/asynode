@@ -50,10 +50,11 @@
             
   <h1>Source code for asynode.core</h1><div class="highlight"><pre>
 <span class="sd">&quot;&quot;&quot; This module is the core of asynode.</span>
-<span class="sd">Implement a listener :class:`BaseServerd`,</span>
-<span class="sd">a bi-directional connection :class:`Connection`</span>
+<span class="sd">It implements a listener :class:`BaseServerd`,</span>
+<span class="sd">a bi-directional connection handler :class:`Connection`</span>
 <span class="sd">and a factory :class:`ConnectionFactory` to link connections and break point</span>
-<span class="sd">handlers.</span>
+<span class="sd">handlers. The term ``break point``  is intended to indicate a point in the</span>
+<span class="sd">protocol execution you need to interpret an event.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 <span class="kn">import</span> <span class="nn">asyncore</span>
 <span class="kn">import</span> <span class="nn">asynchat</span>
@@ -68,23 +69,22 @@
 <span class="p">)</span>
 
 <div class="viewcode-block" id="BaseServerd"><a class="viewcode-back" href="../../core.html#asynode.core.BaseServerd">[docs]</a><span class="k">class</span> <span class="nc">BaseServerd</span><span class="p">(</span><span class="n">asyncore</span><span class="o">.</span><span class="n">dispatcher</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot; This class is responsible for incoming event.</span>
-<span class="sd">    On an incoming event, it calls back `on_accept` function passed during its</span>
+    <span class="sd">&quot;&quot;&quot; This class is responsible for managing incoming event.</span>
+<span class="sd">    On an incoming event, it calls back ``on_accept`` function passed during its</span>
 <span class="sd">    initialization.</span>
+
+<span class="sd">    :param host: network host name or ip.</span>
+<span class="sd">    :type host: :class:`str`</span>
+<span class="sd">    :param port: listening port.</span>
+<span class="sd">    :type port: :class:`int`</span>
+<span class="sd">    :param on_accept: callback function called on accept event.</span>
+<span class="sd">    :type on_accept: callable</span>
+
+<span class="sd">    .. note:: ``on_accept`` have to *accept* a :class:`socket` as input</span>
+<span class="sd">        parameter.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">on_accept</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Initialize and bind an Event Listener.</span>
-<span class="sd">        :param host: network host name or ip</span>
-<span class="sd">        :type host: :class:`str`</span>
-<span class="sd">        :param port: listening port</span>
-<span class="sd">        :type port: :class:`int`</span>
-<span class="sd">        :param on_accept: callback function called on accept event</span>
-<span class="sd">        :type on_accept: callable</span>
-
-<span class="sd">        .. note::</span>
-<span class="sd">        `on_accept` have to *accept* a `socket` as input parameter.</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="s">&quot; Initialize and bind an Event Listener.&quot;</span>
         <span class="n">asyncore</span><span class="o">.</span><span class="n">dispatcher</span><span class="o">.</span><span class="n">__init__</span> <span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">on_accept</span> <span class="o">=</span> <span class="n">on_accept</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">create_socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
@@ -103,55 +103,49 @@
 <span class="sd">    or an event creator (**CLIENT MODE**). Input and output data management is</span>
 <span class="sd">    handled through some break points to an external object that notify</span>
 <span class="sd">    something to be managed. After managing a break point you can re-enter</span>
-<span class="sd">    inside this class via :meth:`callback`. Currently break points are raised</span>
-<span class="sd">    after :meth:`__init__` marked as *INITIAL* and after a</span>
-<span class="sd">    :meth:`found_terminator` marked as *OPERATIVE*.</span>
+<span class="sd">    inside this class via :meth:`callback`.</span>
+
+<span class="sd">    +------------------------+-----------------+</span>
+<span class="sd">    | Break Point            | State           |</span>
+<span class="sd">    +========================+=================+</span>
+<span class="sd">    | ``__init__()``         | ``INITIAL``     |</span>
+<span class="sd">    +------------------------+-----------------+</span>
+<span class="sd">    | ``handle_connect()``   | ``OPERATIVE``   |</span>
+<span class="sd">    +------------------------+-----------------+</span>
+<span class="sd">    | ``found_terminator()`` | ``OPERATIVE``   |</span>
+<span class="sd">    +------------------------+-----------------+</span>
 
 <span class="sd">    .. note::</span>
+<span class="sd">        Only in **CLIENT MODE** we have to handle a connection.</span>
 
-<span class="sd">    In **CLIENT MODE** there&#39;s another break point after the `CONNECTION ACK`</span>
-<span class="sd">    also marked as *OPERATIVE*.</span>
+<span class="sd">    :param automaton: break point function.</span>
+<span class="sd">    :type automaton: :class:`state.Automaton`</span>
+<span class="sd">    :param sock: an initialized `socket` [**SERVER MODE**] or nothing [**CLIENT MODE**].</span>
+<span class="sd">    :type sock: :class:`socket`</span>
 
-<span class="sd">    .. warning::</span>
-
-<span class="sd">    Probably you wouldn&#39;t subclass it.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">callback</span><span class="p">,</span> <span class="n">sock</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Initilize a new :class:`Connection`</span>
-<span class="sd">        :param cid: connection identifier</span>
-<span class="sd">        :type cid: hashable</span>
-<span class="sd">        :param callback: function called everytime a new internal event</span>
-<span class="sd">        have to be handled (break point).</span>
-<span class="sd">        :type callback: callable</span>
-<span class="sd">        :param sock: an initialized `socket` [**SERVER MODE**]</span>
-<span class="sd">        or nothing [**CLIENT MODE**].</span>
-<span class="sd">        :type sock: :class:`socket`</span>
-
-<span class="sd">        .. note::</span>
+<span class="sd">    .. note::</span>
 <span class="sd">        `callback` function will be called with</span>
 <span class="sd">        *state, inbuffer, cid and a callback*</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+
+<span class="sd">    .. warning:: Probably you wouldn&#39;t subclass it.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">automaton</span><span class="p">,</span> <span class="n">sock</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="s">&quot; Initilize a new :class:`Connection`&quot;</span>
         <span class="n">sock</span> <span class="o">=</span> <span class="n">sock</span> <span class="ow">or</span> <span class="n">socket</span><span class="o">.</span><span class="n">socket</span><span class="p">(</span><span class="n">socket</span><span class="o">.</span><span class="n">AF_INET</span><span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">SOCK_STREAM</span><span class="p">)</span>
         <span class="n">asynchat</span><span class="o">.</span><span class="n">async_chat</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sock</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">cid</span> <span class="o">=</span> <span class="n">cid</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_process</span> <span class="o">=</span> <span class="n">callback</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_automaton</span> <span class="o">=</span> <span class="n">automaton</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">addr</span><span class="p">:</span>
             <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Incoming connection from {a}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">addr</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_process</span><span class="p">(</span><span class="s">&#39;INITIAL&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">callback</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="s">&#39;INITIAL&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Connection.callback"><a class="viewcode-back" href="../../core.html#asynode.core.Connection.callback">[docs]</a>    <span class="k">def</span> <span class="nf">callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">terminator</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">close</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; This method, *passed to the event handler function*, is the entry</span>
-<span class="sd">        point after a complete break point handling.</span>
-
-<span class="sd">        :param data: message to send to the other peer</span>
-<span class="sd">        :type data: :class:`str`</span>
-<span class="sd">        :param terminator: new internal terminator</span>
-<span class="sd">        :type terminator: :class:`str` or :class:`int`</span>
-<span class="sd">        :param close: close the channel</span>
-<span class="sd">        :type close: :class:`bool`</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">LOGGER</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;CALLBACK {d!r} {t!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">terminator</span><span class="p">))</span>
+<div class="viewcode-block" id="Connection.process"><a class="viewcode-back" href="../../core.html#asynode.core.Connection.process">[docs]</a>    <span class="k">def</span> <span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Process a break point &quot;&quot;&quot;</span>
+        <span class="n">next_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_automaton</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">state</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">next_state</span><span class="o">.</span><span class="n">push</span>
+        <span class="n">terminator</span> <span class="o">=</span> <span class="n">next_state</span><span class="o">.</span><span class="n">terminator</span>
+        <span class="n">close</span> <span class="o">=</span> <span class="n">next_state</span><span class="o">.</span><span class="n">close</span>
+        <span class="n">LOGGER</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;NEXT {d!r} {t!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">d</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">t</span><span class="o">=</span><span class="n">terminator</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">terminator</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
             <span class="n">LOGGER</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s">&#39;Setting terminator to {t!r}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">t</span><span class="o">=</span><span class="n">terminator</span><span class="p">))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">set_terminator</span><span class="p">(</span><span class="n">terminator</span><span class="p">)</span>
@@ -168,12 +162,12 @@
 
     <span class="k">def</span> <span class="nf">handle_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="n">LOGGER</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s">&#39;Connected to {a}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">a</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">remote</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_process</span><span class="p">(</span><span class="s">&#39;OPERATIVE&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">callback</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="s">&#39;OPERATIVE&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">found_terminator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">handle_close</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_process</span><span class="p">(</span><span class="s">&#39;OPERATIVE&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">callback</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="s">&#39;OPERATIVE&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_buffer</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">def</span> <span class="nf">handle_close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -197,71 +191,41 @@
 </div></div>
 <div class="viewcode-block" id="ConnectionFactory"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory">[docs]</a><span class="k">class</span> <span class="nc">ConnectionFactory</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; This class helps to create connections and manage their break points</span>
-<span class="sd">    binding</span>
-<span class="sd">    connections and their break points handlers.</span>
+<span class="sd">    binding connections and their break points handlers.</span>
+
+<span class="sd">    :param instate: Incoming connection break point handler.</span>
+<span class="sd">    :type instate: :class:`Automaton`</span>
+<span class="sd">    :param outstate: Outcoming connection break point handler.</span>
+<span class="sd">    :type outstate: :class:`Automaton`</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instate</span><span class="p">,</span> <span class="n">outstate</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Initilize a new :class:`ConnectionFactory`.</span>
-<span class="sd">        :param instate: Incoming connection break point handler</span>
-<span class="sd">        :type instate: :class:`Automaton`</span>
-<span class="sd">        :param instate: Outcoming connection break point handler</span>
-<span class="sd">        :type instate: :class:`Automaton`</span>
-<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="s">&quot; Initilize a new :class:`ConnectionFactory`&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">instate</span>    <span class="o">=</span> <span class="n">instate</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">outstate</span>   <span class="o">=</span> <span class="n">outstate</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">listener</span>   <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;listener&#39;</span><span class="p">,</span> <span class="n">BaseServerd</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">incoming</span>   <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;inconn&#39;</span><span class="p">,</span> <span class="n">Connection</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">outcoming</span>  <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s">&#39;outconn&#39;</span><span class="p">,</span> <span class="n">Connection</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_id</span>        <span class="o">=</span> <span class="mi">0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span>     <span class="o">=</span> <span class="p">{}</span>
 
-<div class="viewcode-block" id="ConnectionFactory.listen"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.listen">[docs]</a>    <span class="k">def</span> <span class="nf">listen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">):</span>
+<div class="viewcode-block" id="ConnectionFactory.listen"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.listen">[docs]</a>    <span class="k">def</span> <span class="nf">listen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">on_accept</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; Create a listener (default :class:`BaseServerd`) bound on</span>
 <span class="sd">        host:port.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">listener</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">accept</span><span class="p">)</span>
+        <span class="n">on_accept</span> <span class="o">=</span> <span class="n">on_accept</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">accept</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">listener</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="n">on_accept</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="ConnectionFactory.accept"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.accept">[docs]</a>    <span class="k">def</span> <span class="nf">accept</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sock</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; Create an incoming connection (default :class:`Connection`) and its</span>
 <span class="sd">        break point handler.</span>
 
-<span class="sd">        .. note::</span>
-
-<span class="sd">        Usually called after a listener&#39;s accept.</span>
+<span class="sd">        .. note:: Usually called after a listener&#39;s accept.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">cid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_next</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cid</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">instate</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">incoming</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">,</span> <span class="n">sock</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">incoming</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">instate</span><span class="p">(),</span> <span class="n">sock</span><span class="p">)</span>
 </div>
 <div class="viewcode-block" id="ConnectionFactory.send"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.send">[docs]</a>    <span class="k">def</span> <span class="nf">send</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot; Create and connect an outcoming connection (default</span>
 <span class="sd">        :class:`Connection`) and its break point handler.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">cid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_next</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cid</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">outstate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">outcoming</span><span class="p">(</span><span class="n">cid</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process</span><span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">((</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span>
-</div>
-<div class="viewcode-block" id="ConnectionFactory.process"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.process">[docs]</a>    <span class="k">def</span> <span class="nf">process</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">cid</span><span class="p">,</span> <span class="n">callback</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Link between connections and break point handlers.</span>
-<span class="sd">        :param state: break point type (**INITIAL** or **OPERATIVE**)</span>
-<span class="sd">        :type state: :class:`str`</span>
-<span class="sd">        :param data: break point buffer</span>
-<span class="sd">        :type data: :class:`list`</span>
-<span class="sd">        :param cid: break point sender</span>
-<span class="sd">        :type cid: hashable</span>
-<span class="sd">        :param callback: connection entry point</span>
-<span class="sd">        :type callback: callable.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">next_state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cid</span><span class="p">]</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data</span><span class="p">),</span> <span class="n">state</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">next_state</span><span class="o">.</span><span class="n">final</span><span class="p">:</span>
-            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cache</span><span class="p">[</span><span class="n">cid</span><span class="p">]</span>
-        <span class="n">callback</span><span class="p">(</span><span class="n">next_state</span><span class="o">.</span><span class="n">push</span><span class="p">,</span> <span class="n">next_state</span><span class="o">.</span><span class="n">terminator</span><span class="p">,</span> <span class="n">next_state</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
-</div>
-<div class="viewcode-block" id="ConnectionFactory.get_next"><a class="viewcode-back" href="../../core.html#asynode.core.ConnectionFactory.get_next">[docs]</a>    <span class="k">def</span> <span class="nf">get_next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; Return a new connection id.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_id</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_id</span></div></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">outcoming</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">outstate</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">))</span><span class="o">.</span><span class="n">connect</span><span class="p">((</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">))</span></div></div>
 </pre></div>
 
           </div>
