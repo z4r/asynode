@@ -67,10 +67,8 @@ class Connection(asynchat.async_chat):
     .. note::
         Only in **CLIENT MODE** we have to handle a connection.
 
-    :param cid: the connection identifier.
-    :type cid: hashable
-    :param callback: break point function.
-    :type callback: callable
+    :param automaton: break point function.
+    :type automaton: :class:`state.Automaton`
     :param sock: an initialized `socket` [**SERVER MODE**] or nothing [**CLIENT MODE**].
     :type sock: :class:`socket`
 
@@ -80,29 +78,23 @@ class Connection(asynchat.async_chat):
 
     .. warning:: Probably you wouldn't subclass it.
     """
-    def __init__(self, cid, callback, sock=None):
+    def __init__(self, automaton, sock=None):
         " Initilize a new :class:`Connection`"
         sock = sock or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         asynchat.async_chat.__init__(self, sock)
-        self.cid = cid
-        self._process = callback
+        self._automaton = automaton
         self._buffer = []
         if self.addr:
             LOGGER.info('Incoming connection from {a}'.format(a=self.addr))
-        self._process('INITIAL', self._buffer, cid, self.callback)
+        self.process('INITIAL', self._buffer)
 
-    def callback(self, data=None, terminator=None, close=False):
-        """ This method, *passed to the event handler function*, is the entry
-        point after a complete break point handling.
-
-        :param data: message to send to the other peer.
-        :type data: :class:`str`
-        :param terminator: new internal terminator.
-        :type terminator: :class:`str` or :class:`int`
-        :param close: close the channel when done.
-        :type close: :class:`bool`
-        """
-        LOGGER.debug('CALLBACK {d!r} {t!r}'.format(d=data, t=terminator))
+    def process(self, state, data):
+        """ Process a break point """
+        next_state = self._automaton.next(''.join(data), state)
+        data = next_state.push
+        terminator = next_state.terminator
+        close = next_state.close
+        LOGGER.debug('NEXT {d!r} {t!r}'.format(d=data, t=terminator))
         if terminator is not None:
             LOGGER.debug('Setting terminator to {t!r}'.format(t=terminator))
             self.set_terminator(terminator)
@@ -119,12 +111,12 @@ class Connection(asynchat.async_chat):
 
     def handle_connect(self):
         LOGGER.info('Connected to {a}'.format(a=self.remote))
-        self._process('OPERATIVE', self._buffer, self.cid, self.callback)
+        self.process('OPERATIVE', self._buffer)
 
     def found_terminator(self):
         if not self._buffer:
             self.handle_close()
-        self._process('OPERATIVE', self._buffer, self.cid, self.callback)
+        self.process('OPERATIVE', self._buffer)
         self._buffer = []
 
     def handle_close(self):
@@ -162,14 +154,13 @@ class ConnectionFactory(object):
         self.listener   = kwargs.get('listener', BaseServerd)
         self.incoming   = kwargs.get('inconn', Connection)
         self.outcoming  = kwargs.get('outconn', Connection)
-        self._id        = 0
-        self._cache     = {}
 
-    def listen(self, host, port):
+    def listen(self, host, port, on_accept=None):
         """ Create a listener (default :class:`BaseServerd`) bound on
         host:port.
         """
-        self.listener(host, port, self.accept)
+        on_accept = on_accept or self.accept
+        self.listener(host, port, on_accept)
 
     def accept(self, sock):
         """ Create an incoming connection (default :class:`Connection`) and its
@@ -177,36 +168,10 @@ class ConnectionFactory(object):
 
         .. note:: Usually called after a listener's accept.
         """
-        cid = self.get_next()
-        self._cache[cid] = self.instate()
-        self.incoming(cid, self.process, sock)
+        self.incoming(self.instate(), sock)
 
     def send(self, host, port, *args, **kwargs):
         """ Create and connect an outcoming connection (default
         :class:`Connection`) and its break point handler.
         """
-        cid = self.get_next()
-        self._cache[cid] = self.outstate(*args, **kwargs)
-        self.outcoming(cid, self.process).connect((host, port))
-
-    def process(self, state, data, cid, callback):
-        """ Link between connections and break point handlers.
-
-        :param state: break point type.
-        :type state: :class:`str`
-        :param data: break point buffer.
-        :type data: :class:`list`
-        :param cid: break point sender identifier.
-        :type cid: hashable
-        :param callback: connection entry point.
-        :type callback: callable.
-        """
-        next_state = self._cache[cid].next(''.join(data), state)
-        if next_state.final:
-            del self._cache[cid]
-        callback(next_state.push, next_state.terminator, next_state.close)
-
-    def get_next(self):
-        " Return a new connection id"
-        self._id += 1
-        return self._id
+        self.outcoming(self.outstate(*args, **kwargs)).connect((host, port))
