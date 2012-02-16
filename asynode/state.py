@@ -23,3 +23,6 @@ class Automaton(object):
 
     def operative(self, data):
         raise NotImplementedError
+
+    def error(self, data):
+        raise NotImplementedError
