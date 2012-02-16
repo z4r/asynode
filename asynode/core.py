@@ -82,7 +82,7 @@ class Connection(asynchat.async_chat):
         " Initilize a new :class:`Connection`"
         sock = sock or socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         asynchat.async_chat.__init__(self, sock)
-        self._automaton = automaton
+        self.automaton = automaton
         self._buffer = []
         if self.addr:
             LOGGER.info('Incoming connection from {a}'.format(a=self.addr))
@@ -90,7 +90,7 @@ class Connection(asynchat.async_chat):
 
     def process(self, state, data):
         """ Process a break point """
-        next_state = self._automaton.next(''.join(data), state)
+        next_state = self.automaton.next(''.join(data), state)
         data = next_state.push
         terminator = next_state.terminator
         close = next_state.close
@@ -123,6 +123,10 @@ class Connection(asynchat.async_chat):
         LOGGER.info('Closing {a}'.format(a=self.remote or ''))
         asynchat.async_chat.handle_close(self)
 
+    def handle_error(self):
+        LOGGER.error('Handling connection error')
+        self.process('ERROR', self._buffer)
+
     @property
     def remote(self):
         """ Return the address of the remote endpoint.
@@ -154,6 +158,7 @@ class ConnectionFactory(object):
         self.listener   = kwargs.get('listener', BaseServerd)
         self.incoming   = kwargs.get('inconn', Connection)
         self.outcoming  = kwargs.get('outconn', Connection)
+        self.collect    = kwargs.get('collect', lambda x: x)
 
     def listen(self, host, port, on_accept=None):
         """ Create a listener (default :class:`BaseServerd`) bound on
@@ -168,10 +173,13 @@ class ConnectionFactory(object):
 
         .. note:: Usually called after a listener's accept.
         """
-        self.incoming(self.instate(), sock)
+        conn = self.incoming(self.instate(), sock)
+        self.collect(conn)
 
     def send(self, host, port, *args, **kwargs):
         """ Create and connect an outcoming connection (default
         :class:`Connection`) and its break point handler.
         """
-        self.outcoming(self.outstate(*args, **kwargs)).connect((host, port))
+        conn = self.outcoming(self.outstate(*args, **kwargs))
+        self.collect(conn)
+        conn.connect((host, port))
