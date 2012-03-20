@@ -7,62 +7,62 @@ class AsyncSMTPException(Exception):
     pass
 
 class SMTPOutcomingAutomaton(Automaton):
-    def __init__(self, *args, **kwargs):
-        r'''
-        >>> s = SMTPOutcomingAutomaton(
-        ...     auth = ('user', 'pass'),
-        ...     localname = '@work',
-        ...     source = 'me@work.it',
-        ...     targets = ['you@work.it', 'us@work.it',],
-        ...     message = 'Hello World!\nHello Again!',
-        ... )
-        >>> s._indata ==  [
-        ... (None, '220'),
-        ... ('AUTH PLAIN AHVzZXIAcGFzcw==', '235'),
-        ... ('HELO @work', '250'),
-        ... ('MAIL FROM: <me@work.it>', '250'),
-        ... ('RCPT TO: <you@work.it>', '250'),
-        ... ('RCPT TO: <us@work.it>', '250'),
-        ... ('DATA', '354'),
-        ... ('Hello World!\r\nHello Again!\r\n.', '250'),
-        ... ('QUIT', '221'),
-        ... ]
-        True
-        >>> s.next(None, 'INITIAL') #INIT
-        State(push=None, terminator='\r\n', close=False, final=False)
-        >>> s.next(None) #CONNECT
-        State(push=None, terminator=None, close=False, final=False)
-        >>> s.next('220') #ACK CONNECT
-        State(push='AUTH PLAIN AHVzZXIAcGFzcw==\r\n', terminator=None, close=False, final=False)
-        >>> s.next('235') #ACK AUTH
-        State(push='HELO @work\r\n', terminator=None, close=False, final=False)
-        >>> s.next('250') #ACK HELO
-        State(push='MAIL FROM: <me@work.it>\r\n', terminator=None, close=False, final=False)
-        >>> s.next('250') #ACK MAIL
-        State(push='RCPT TO: <you@work.it>\r\n', terminator=None, close=False, final=False)
-        >>> s.next('250') #ACK RCPT_1
-        State(push='RCPT TO: <us@work.it>\r\n', terminator=None, close=False, final=False)
-        >>> s.next('250') #ACK RCPT_2
-        State(push='DATA\r\n', terminator=None, close=False, final=False)
-        >>> s.next('354') #ACK DATA
-        State(push='Hello World!\r\nHello Again!\r\n.\r\n', terminator=None, close=False, final=False)
-        >>> s.next('250') #ACK SENDDATA
-        State(push='QUIT\r\n', terminator=None, close=False, final=False)
-        >>> s.next('221') #ACK QUIT
-        State(push=None, terminator=None, close=False, final=True)
-        '''
+    r'''
+    >>> s = SMTPOutcomingAutomaton(
+    ...     auth = ('user', 'pass'),
+    ...     localname = '@work',
+    ...     source = 'me@work.it',
+    ...     targets = ['you@work.it', 'us@work.it',],
+    ...     message = 'Hello World!\nHello Again!',
+    ... )
+    >>> s._indata ==  [
+    ... (None, '220'),
+    ... ('AUTH PLAIN AHVzZXIAcGFzcw==', '235'),
+    ... ('HELO @work', '250'),
+    ... ('MAIL FROM: <me@work.it>', '250'),
+    ... ('RCPT TO: <you@work.it>', '250'),
+    ... ('RCPT TO: <us@work.it>', '250'),
+    ... ('DATA', '354'),
+    ... ('Hello World!\r\nHello Again!\r\n.', '250'),
+    ... ('QUIT', '221'),
+    ... ]
+    True
+    >>> s.next(None, 'INITIAL') #INIT
+    State(push=None, terminator='\r\n', close=False, final=False)
+    >>> s.next(None) #CONNECT
+    State(push=None, terminator=None, close=False, final=False)
+    >>> s.next('220') #ACK CONNECT
+    State(push='AUTH PLAIN AHVzZXIAcGFzcw==\r\n', terminator=None, close=False, final=False)
+    >>> s.next('235') #ACK AUTH
+    State(push='HELO @work\r\n', terminator=None, close=False, final=False)
+    >>> s.next('250') #ACK HELO
+    State(push='MAIL FROM: <me@work.it>\r\n', terminator=None, close=False, final=False)
+    >>> s.next('250') #ACK MAIL
+    State(push='RCPT TO: <you@work.it>\r\n', terminator=None, close=False, final=False)
+    >>> s.next('250') #ACK RCPT_1
+    State(push='RCPT TO: <us@work.it>\r\n', terminator=None, close=False, final=False)
+    >>> s.next('250') #ACK RCPT_2
+    State(push='DATA\r\n', terminator=None, close=False, final=False)
+    >>> s.next('354') #ACK DATA
+    State(push='Hello World!\r\nHello Again!\r\n.\r\n', terminator=None, close=False, final=False)
+    >>> s.next('250') #ACK SENDDATA
+    State(push='QUIT\r\n', terminator=None, close=False, final=False)
+    >>> s.next('221') #ACK QUIT
+    State(push=None, terminator=None, close=False, final=True)
+    '''
+    def __init__(self, source, targets, message, localname, auth=None):
         super(SMTPOutcomingAutomaton, self).__init__()
         self._indata = [(None, '220')]
-        if kwargs.get('auth'):
+        if auth:
             self._indata.append((
-                'AUTH PLAIN ' + b64encode(("\0%s\0%s") % kwargs.get('auth')),
+                'AUTH PLAIN ' + b64encode(("\0%s\0%s") % auth),
                 '235',
             ))
-        self._indata.append(self._helo(kwargs['localname']))
-        self._indata.append(self._mail(kwargs['source']))
-        self._indata.extend(self._rcpt(kwargs['targets']))
+        self._indata.append(self._helo(localname))
+        self._indata.append(self._mail(source))
+        self._indata.extend(self._rcpt(targets))
         self._indata.append(self._data())
-        self._indata.append(self._qmsg(kwargs['message']))
+        self._indata.append(self._qmsg(message))
         self._indata.append(self._quit())
         self._nextcheck = None
 
@@ -116,42 +116,42 @@ class SMTPOutcomingAutomaton(Automaton):
 
 import socket
 class SMTPIncomingAutomaton(Automaton):
+    r'''
+    >>> s = SMTPIncomingAutomaton(fqdn='z4r.buongiorno.loc')
+    >>> s.next(None, 'INITIAL')
+    State(push='220 z4r.buongiorno.loc 1.0\r\n', terminator='\r\n', close=False, final=False)
+    >>> s.next('LHLO')
+    State(push="502 Error: command 'lhlo' not implemented\r\n", terminator=None, close=False, final=False)
+    >>> s.next('HELO')
+    State(push='501 Syntax: HELO hostname\r\n', terminator=None, close=False, final=False)
+    >>> s.next('HELO @work')
+    State(push='250 z4r.buongiorno.loc\r\n', terminator=None, close=False, final=False)
+    >>> s.next('HELO @work')
+    State(push='503 Duplicate HELO/EHLO\r\n', terminator=None, close=False, final=False)
+    >>> s.next('RCPT TO: <you@work.it>')
+    State(push='503 Error: need MAIL command\r\n', terminator=None, close=False, final=False)
+    >>> s.next('MAIL FROM: ')
+    State(push='501 Syntax: MAIL FROM:<address>\r\n', terminator=None, close=False, final=False)
+    >>> s.next('MAIL FROM: <me@work.it>')
+    State(push='250 Ok\r\n', terminator=None, close=False, final=False)
+    >>> s.next('MAIL FROM: <me@work.it>')
+    State(push='503 Error: nested MAIL command\r\n', terminator=None, close=False, final=False)
+    >>> s.next('DATA')
+    State(push='503 Error: need RCPT command\r\n', terminator=None, close=False, final=False)
+    >>> s.next('RCPT TO: <you@work.it>')
+    State(push='250 Ok\r\n', terminator=None, close=False, final=False)
+    >>> s.next('RCPT TO: <us@work.it>')
+    State(push='250 Ok\r\n', terminator=None, close=False, final=False)
+    >>> s.next('DATA SEND')
+    State(push='501 Syntax: DATA\r\n', terminator=None, close=False, final=False)
+    >>> s.next('DATA')
+    State(push='354 End data with <CR><LF>.<CR><LF>\r\n', terminator='\r\n.\r\n', close=False, final=False)
+    >>> s.next('Hello World!\r\nHello Again!')
+    State(push='250 Ok\r\n', terminator='\r\n', close=False, final=False)
+    >>> s.next('QUIT')
+    State(push='221 Bye', terminator=None, close=True, final=True)
+    '''
     def __init__(self, *args, **kwargs):
-        r'''
-        >>> s = SMTPIncomingAutomaton(fqdn='z4r.buongiorno.loc')
-        >>> s.next(None, 'INITIAL')
-        State(push='220 z4r.buongiorno.loc 1.0\r\n', terminator='\r\n', close=False, final=False)
-        >>> s.next('LHLO')
-        State(push="502 Error: command 'lhlo' not implemented\r\n", terminator=None, close=False, final=False)
-        >>> s.next('HELO')
-        State(push='501 Syntax: HELO hostname\r\n', terminator=None, close=False, final=False)
-        >>> s.next('HELO @work')
-        State(push='250 z4r.buongiorno.loc\r\n', terminator=None, close=False, final=False)
-        >>> s.next('HELO @work')
-        State(push='503 Duplicate HELO/EHLO\r\n', terminator=None, close=False, final=False)
-        >>> s.next('RCPT TO: <you@work.it>')
-        State(push='503 Error: need MAIL command\r\n', terminator=None, close=False, final=False)
-        >>> s.next('MAIL FROM: ')
-        State(push='501 Syntax: MAIL FROM:<address>\r\n', terminator=None, close=False, final=False)
-        >>> s.next('MAIL FROM: <me@work.it>')
-        State(push='250 Ok\r\n', terminator=None, close=False, final=False)
-        >>> s.next('MAIL FROM: <me@work.it>')
-        State(push='503 Error: nested MAIL command\r\n', terminator=None, close=False, final=False)
-        >>> s.next('DATA')
-        State(push='503 Error: need RCPT command\r\n', terminator=None, close=False, final=False)
-        >>> s.next('RCPT TO: <you@work.it>')
-        State(push='250 Ok\r\n', terminator=None, close=False, final=False)
-        >>> s.next('RCPT TO: <us@work.it>')
-        State(push='250 Ok\r\n', terminator=None, close=False, final=False)
-        >>> s.next('DATA SEND')
-        State(push='501 Syntax: DATA\r\n', terminator=None, close=False, final=False)
-        >>> s.next('DATA')
-        State(push='354 End data with <CR><LF>.<CR><LF>\r\n', terminator='\r\n.\r\n', close=False, final=False)
-        >>> s.next('Hello World!\r\nHello Again!')
-        State(push='250 Ok\r\n', terminator='\r\n', close=False, final=False)
-        >>> s.next('QUIT')
-        State(push='221 Bye', terminator=None, close=True, final=True)
-        '''
         super(SMTPIncomingAutomaton, self).__init__()
         self.fqdn = kwargs.get('fqdn', socket.getfqdn())
         self.version = kwargs.get('version', '1.0')

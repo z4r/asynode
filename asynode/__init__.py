@@ -1,12 +1,12 @@
 """
 :abstract: Asyncore Protocols Nodes
-:version: 0.1
+:version: 0.2
 :author: "Andrea 'z4r' De Marco <andrea.demarco@buongiorno.com>"
 :copyright: "2011, Andrea 'z4r' De Marco <andrea.demarco@buongiorno.com>"
 """
 
 __author__ = "Andrea 'z4r' De Marco <andrea.demarco@buongiorno.com>"
-__version__ = '0.1'
+__version__ = '0.2'
 __classifiers__ = [
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
