@@ -21,3 +21,4 @@ Documentation/
 .idea/
 *.sh
 doc/build
+.buildinfo

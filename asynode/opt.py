@@ -18,8 +18,8 @@ def parse_input():
         action  = 'store',
         dest    = 'port',
         type    = 'int',
-        help    = 'Port [8080]',
-        default = 8080,
+        help    = 'Port [8000]',
+        default = 8000,
     )
     return parser.parse_args()
 
