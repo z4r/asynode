@@ -85,7 +85,7 @@ class Connection(asynchat.async_chat):
         self.automaton = automaton
         self._buffer = []
         if self.addr:
-            LOGGER.info('Incoming connection from {a}'.format(a=self.addr))
+            LOGGER.info('Incoming connection from {s.addr}'.format(s=self))
         self.process('INITIAL', self._buffer)
 
     def process(self, state, data):
@@ -110,7 +110,7 @@ class Connection(asynchat.async_chat):
         self._buffer.append(data)
 
     def handle_connect(self):
-        LOGGER.info('Connected to {a}'.format(a=self.remote))
+        LOGGER.info('Connected to {s.remote}'.format(s=self))
         self.process('OPERATIVE', self._buffer)
 
     def found_terminator(self):
@@ -120,7 +120,7 @@ class Connection(asynchat.async_chat):
         self._buffer = []
 
     def handle_close(self):
-        LOGGER.info('Closing {a}'.format(a=self.remote or ''))
+        LOGGER.info('Closing {s.remote}'.format(s=self))
         asynchat.async_chat.handle_close(self)
 
     def handle_error(self):
@@ -132,7 +132,11 @@ class Connection(asynchat.async_chat):
         """ Return the address of the remote endpoint.
         For IP sockets, the address info is a pair (hostaddr, port).
         """
-        return self.socket.getpeername()
+        try:
+            return self.socket.getpeername()
+        except Exception as e:
+            LOGGER.error(e)
+            return '', ''
 
     @property
     def local(self):
