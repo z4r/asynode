@@ -9,11 +9,11 @@ class AsyncSMTPException(Exception):
 class SMTPOutcomingAutomaton(Automaton):
     r'''
     >>> s = SMTPOutcomingAutomaton(
-    ...     auth = ('user', 'pass'),
-    ...     localname = '@work',
-    ...     source = 'me@work.it',
-    ...     targets = ['you@work.it', 'us@work.it',],
-    ...     message = 'Hello World!\nHello Again!',
+    ...     auth = (u'user', u'pass'),
+    ...     localname = u'@work',
+    ...     source = u'me@work.it',
+    ...     targets = ['you@work.it', u'us@work.it',],
+    ...     message = u'Hello World!\nHello Again!',
     ... )
     >>> s._indata ==  [
     ... (None, '220'),
@@ -57,7 +57,7 @@ class SMTPOutcomingAutomaton(Automaton):
             self._indata.append((
                 'AUTH PLAIN ' + b64encode(("\0%s\0%s") % auth),
                 '235',
-            ))
+                ))
         self._indata.append(self._helo(localname))
         self._indata.append(self._mail(source))
         self._indata.extend(self._rcpt(targets))
@@ -81,16 +81,16 @@ class SMTPOutcomingAutomaton(Automaton):
 
     @staticmethod
     def _helo(localname):
-        return 'HELO '+ localname, '250'
+        return 'HELO {0}'.format(localname), '250'
 
     @staticmethod
     def _mail(source):
-        return 'MAIL FROM: <%s>'% source, '250'
+        return 'MAIL FROM: <{0}>'.format(source), '250'
 
     @staticmethod
     def _rcpt(targets):
         for target in targets:
-            yield 'RCPT TO: <%s>'% target, '250'
+            yield 'RCPT TO: <{0}>'.format(target), '250'
 
     @staticmethod
     def _data():
@@ -102,7 +102,7 @@ class SMTPOutcomingAutomaton(Automaton):
         if not message.endswith(CRLF):
             message += CRLF
         message += "."
-        return message, '250'
+        return str(message), '250'
 
     @staticmethod
     def _quit():
